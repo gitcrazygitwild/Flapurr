@@ -1,0 +1,29 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
+  <title>Flapurr!</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <div class="wrap">
+    <header class="top">
+      <h1>Flapurr!</h1>
+      <div class="hint">Tap to flap • R to restart (desktop)</div>
+    </header>
+
+    <div class="stage">
+      <canvas id="c" width="420" height="640" aria-label="Flapurr game canvas"></canvas>
+      <button id="fs" class="fs" type="button" aria-label="Fullscreen">⛶</button>
+    </div>
+
+    <footer class="bottom">
+      <span id="status">Ready</span>
+      <span class="right">Made with 🐾</span>
+    </footer>
+  </div>
+
+  <script src="game.js"></script>
+</body>
+</html>
