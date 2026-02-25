@@ -1,1 +1,64 @@
+:root { color-scheme: light dark; }
 
+body {
+  margin: 0;
+  font-family: system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif;
+  display: grid;
+  place-items: center;
+  min-height: 100svh;
+  background: #0b0f17;
+  color: #e7eefc;
+}
+
+/* Keep things centered, but make the game fill the phone nicely */
+.wrap { width: min(96vw, 520px); padding: 10px 0 14px; }
+
+.top {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  margin: 0 6px 10px;
+}
+
+h1 { margin: 0; font-size: 24px; letter-spacing: 0.3px; }
+.hint { opacity: 0.75; font-size: 12px; text-align: right; }
+
+.stage {
+  position: relative;
+  margin: 0 6px;
+  border-radius: 14px;
+  overflow: hidden;
+  box-shadow: 0 10px 30px rgba(0,0,0,0.45);
+  background: #0f1626;
+}
+
+/* Canvas scales to available height on phones */
+canvas {
+  display: block;
+  width: 100%;
+  height: min(78svh, 760px);
+  touch-action: none; /* important: prevents scroll/zoom gestures while playing */
+  background: transparent;
+}
+
+/* Fullscreen button */
+.fs {
+  position: absolute;
+  right: 10px;
+  top: 10px;
+  border: 0;
+  border-radius: 10px;
+  padding: 10px 12px;
+  font-size: 16px;
+  background: rgba(0,0,0,0.35);
+  color: #e7eefc;
+}
+
+.bottom {
+  margin: 10px 6px 0;
+  display: flex;
+  justify-content: space-between;
+  font-size: 12px;
+  opacity: 0.85;
+}
