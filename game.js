@@ -930,18 +930,6 @@ const minX = cat.x + cat.r * 0.35;
 const maxX = cat.x + cat.r * 0.90;
 mouse.x = Math.max(minX, Math.min(maxX, mouse.x));
 
-// simple spring + damping
-mouse.vx += (targetX - mouse.x) * 0.18;
-mouse.vy += (targetY - mouse.y) * 0.18;
-mouse.vx *= 0.72;
-mouse.vy *= 0.72;
-mouse.x += mouse.vx;
-mouse.y += mouse.vy;
-
-// clamp so mouse stays within front half of the cat hitbox (doesn't affect collisions)
-const minX = cat.x + cat.r * 0.35;
-const maxX = cat.x + cat.r * 0.90;
-mouse.x = Math.max(minX, Math.min(maxX, mouse.x));
 
     for (const p of pipes) p.x -= PIPE_SPEED;
 
