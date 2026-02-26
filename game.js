@@ -358,6 +358,25 @@ function drawString(fromX, fromY, toX, toY) {
   ctx.stroke();
 }
 
+// Kill iOS double-tap-to-zoom + dblclick zoom
+let __lastTouchEnd = 0;
+
+document.addEventListener(
+  "touchend",
+  (e) => {
+    const now = Date.now();
+    if (now - __lastTouchEnd < 350) e.preventDefault();
+    __lastTouchEnd = now;
+  },
+  { passive: false }
+);
+
+document.addEventListener(
+  "dblclick",
+  (e) => e.preventDefault(),
+  { passive: false }
+);
+
 // ---------- Input ----------
 let __lastTouchEnd = 0;
 document.addEventListener(
