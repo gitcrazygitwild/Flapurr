@@ -249,10 +249,12 @@ const mouse = { x: cat.x, y: cat.y, vx: 0, vy: 0 };
 const MOUSE_ANCHOR = 0.72;   // stays within cat hitbox (logic position)
 const MOUSE_YOFF   = 6;
 
-const MOUSE_GAP    = 16;     // <-- daylight between cat + mouse (tune 12–26)
-const MOUSE_DRAW_AHEAD = 10; // extra forward bias based on cat speed
+const MOUSE_GAP    = 18;     // <-- daylight between cat + mouse (tune 12–26)
+const MOUSE_DRAW_AHEAD = 12; // extra forward bias based on cat speed
 let pipes = [];
 let t = 0;
+const MOUSE_COLORS = ["#c9c2b6", "#b7b1a7", "#9c8f86", "#d1c7b8", "#8a7c73"];
+let mouseColor = MOUSE_COLORS[0];
 
 // Treat “sparkles”
 let sparkles = []; // {x,y,vx,vy,life}
@@ -281,8 +283,10 @@ function reset() {
   score = 0;
   t = 0;
   sparkles = [];
-
+mouseColor = MOUSE_COLORS[Math.floor(rand() * MOUSE_COLORS.length)];
   catStyle = CAT_PALETTES[Math.floor(Math.random() * CAT_PALETTES.length)];
+// ~55% of runs have stripes, with 3 patterns
+catStripeMode = (rand() < 0.55) ? (1 + Math.floor(rand() * 3)) : 0;
 
   cat.y = WORLD_H * 0.45;
   cat.vy = 0;
@@ -793,13 +797,13 @@ function drawMouse() {
 
   // body
   ctx.globalAlpha = 1;
-  ctx.fillStyle = "#c9c2b6";
+  ctx.strokeStyle = mouseColor;
   ctx.beginPath();
   ctx.ellipse(0, 0, 10, 7, 0, 0, Math.PI * 2);
   ctx.fill();
 
   // head
-  ctx.fillStyle = "#d6cec1";
+  ctx.fillStyle = shade(mouseColor, +0.08);;
   ctx.beginPath();
   ctx.ellipse(8, -2, 6.5, 5.5, 0, 0, Math.PI * 2);
   ctx.fill();
@@ -862,13 +866,33 @@ function drawCat() {
   ctx.beginPath(); ctx.moveTo(-10, -10); ctx.lineTo(-18, -22); ctx.lineTo(-2, -18); ctx.closePath(); ctx.fill();
   ctx.beginPath(); ctx.moveTo(10, -10);  ctx.lineTo(18, -22);  ctx.lineTo(2, -18);  ctx.closePath(); ctx.fill();
 
-  // stripes
+  // stripes (sometimes)
+if (catStripeMode !== 0) {
   ctx.strokeStyle = catStyle.stripe;
   ctx.lineWidth = 3;
+  ctx.lineCap = "round";
+
   ctx.beginPath();
-  ctx.moveTo(-6, -4); ctx.lineTo(6, -4);
-  ctx.moveTo(-7, 2);  ctx.lineTo(7, 2);
+
+  if (catStripeMode === 1) {
+    // classic 2–3 horizontal stripes
+    ctx.moveTo(-7, -4); ctx.lineTo(7, -4);
+    ctx.moveTo(-8,  2); ctx.lineTo(8,  2);
+    if (rand() < 0.5) { ctx.moveTo(-6, 7); ctx.lineTo(6, 7); }
+  } else if (catStripeMode === 2) {
+    // tabby-ish diagonal stripes
+    ctx.moveTo(-10, -2); ctx.lineTo(-2, -6);
+    ctx.moveTo(-10,  4); ctx.lineTo(-1,  0);
+    ctx.moveTo( 10, -2); ctx.lineTo( 2, -6);
+    ctx.moveTo( 10,  4); ctx.lineTo( 1,  0);
+  } else if (catStripeMode === 3) {
+    // belly bands
+    ctx.moveTo(-9, 5); ctx.lineTo(9, 5);
+    ctx.moveTo(-8, 9); ctx.lineTo(8, 9);
+  }
+
   ctx.stroke();
+}
 
   // eyes
   ctx.fillStyle = "#0b1020";
