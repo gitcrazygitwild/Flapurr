@@ -529,7 +529,7 @@ function drawRopePost(x, y, w, h, flipCaps = false, seed = 1) {
     if (ropeH > 20) {
     drawFray(rx, ropeTop + 1, rw, -1, r01);
     drawFray(rx, ropeBot - 1, rw, +1, r01);
-  // }
+   }
 
 // caps: normal = cap at top, base at bottom
 // flipCaps = cap at bottom (gap edge) and base at top
