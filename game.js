@@ -38,6 +38,8 @@ import {
   serverTimestamp
 } from "https://www.gstatic.com/firebasejs/12.9.0/firebase-firestore.js";
 
+document.getElementById("netStatus").textContent = "game.js loaded ✅";
+
 // ---------- Firebase config (yours) ----------
 const firebaseConfig = {
   apiKey: "AIzaSyCtm5P6i-nS-J6BRFu9qNu1MzfCvzLIinY",
