@@ -287,7 +287,7 @@ function reset() {
   cat.vy = 0;
   cat.rot = 0;
 
-  mouse.x = cat.x + cat.r * MOUSE_LEAD;
+  mouse.x = cat.x + cat.r * MOUSE_ANCHOR; // anchor starts in front-half of cat
   mouse.y = cat.y + MOUSE_YOFF;
   mouse.vx = 0;
   mouse.vy = 0;
