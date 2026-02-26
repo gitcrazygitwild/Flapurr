@@ -153,11 +153,13 @@
   status("Loader module running…");
 
   try {
-    await import("./game.js?v=123");
+    await import("./game.js?v=124");
     status("Imported game.js ✅");
   } catch (e) {
-    status("IMPORT FAILED ❌: " + (e?.message || String(e)));
-    console.error(e);
+    console.error("IMPORT ERROR OBJECT:", e);
+    const msg =
+      (e && (e.stack || e.message)) ? (e.stack || e.message) : String(e);
+    status("IMPORT FAILED ❌:\n" + msg);
   }
 </script>
 
