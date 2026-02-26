@@ -496,6 +496,7 @@ function drawPaw(x, y, s) {
 }
 
 function drawCat() {
+  ctx.globalAlpha = 1;
   ctx.save();
   ctx.globalAlpha = 1;
   ctx.translate(cat.x, cat.y);
