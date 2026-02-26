@@ -519,16 +519,16 @@ function drawRopePost(x, y, w, h, flipCaps = false, seed = 1) {
   }
 
   // draw knots on top of wraps
-  // for (const k of knots) {
-    // drawKnot(k.x, k.y, k.r, ropeBase);
-  // }
+    for (const k of knots) {
+    drawKnot(k.x, k.y, k.r, ropeBase, r01);
+   }
 
   ctx.restore();
 
   // frayed edges where rope meets caps
-  // if (ropeH > 20) {
-    // drawFray(rx, ropeTop + 1, rw, -1);
-    // drawFray(rx, ropeBot - 1, rw, +1);
+    if (ropeH > 20) {
+    drawFray(rx, ropeTop + 1, rw, -1, r01);
+    drawFray(rx, ropeBot - 1, rw, +1, r01);
   // }
 
 // caps: normal = cap at top, base at bottom
@@ -675,8 +675,8 @@ function drawPipes() {
     const botH = (WORLD_H - GROUND_H) - botY;
 
     // posts (tan)
-    drawRopePost(p.x, 0, PIPE_W, topH, true);   // flipped caps for TOP post
-    drawRopePost(p.x, botY, PIPE_W, botH, false);
+    drawRopePost(p.x, 0,   PIPE_W, topH, true,  p.seed ^ 0xA1B2C3D4);
+    drawRopePost(p.x, botY, PIPE_W, botH, false, p.seed ^ 0x1F2E3D4C);
     
     // yarn balls at the gap edges (SAFE positioning)
     const topR = Math.min(p.topR, PIPE_W * 0.48);
