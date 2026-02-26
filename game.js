@@ -477,8 +477,9 @@ function drawPipes() {
     const botBallX = p.x + PIPE_W / 2;
     const botBallY = Math.min(WORLD_H - GROUND_H - r - 10, botY + r + 6);
 
-    drawString(topBallX, topBallY + r, topBallX - 18, topBallY + r + 34);
-    drawString(botBallX, botBallY - r, botBallX + 18, botBallY - r - 34);
+    // start strings at the post edges (not past them)
+    drawString(topBallX, topH, topBallX - 18, topH + 26);
+    drawString(botBallX, botY, botBallX + 18, botY - 26);
 
     drawYarnBall(topBallX, topBallY, r);
     drawYarnBall(botBallX, botBallY, r);
