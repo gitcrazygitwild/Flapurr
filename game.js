@@ -326,6 +326,8 @@ function roundRect(x, y, w, h, r) {
 }
 
 // ---------- Input ----------
+document.addEventListener("gesturestart", (e) => e.preventDefault(), { passive: false });
+
 canvas.addEventListener("pointerdown", (e) => {
   e.preventDefault();
 
