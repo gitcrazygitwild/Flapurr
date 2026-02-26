@@ -519,8 +519,8 @@ function drawRopePost(x, y, w, h, flipCaps = false, seed = 1) {
   }
 
   // draw knots on top of wraps
-    for (const k of knots) {
-    drawKnot(k.x, k.y, k.r, ropeBase, r01);
+    // for (const k of knots) {
+    // drawKnot(k.x, k.y, k.r, ropeBase, r01);
    }
 
   ctx.restore();
