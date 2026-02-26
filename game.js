@@ -280,7 +280,21 @@ function addPipe(x) {
   const centerMin = marginTop + PIPE_GAP / 2;
   const centerMax = WORLD_H - marginBottom - PIPE_GAP / 2;
   const gapCenter = centerMin + rand() * (centerMax - centerMin);
-  pipes.push({ x, gapCenter, passed: false });
+  const BALL_COLORS = ["#ff7aa8", "#7ac7ff", "#7dffb3", "#ffd77a", "#b58cff", "#ff8f7a"];
+
+pipes.push({
+  x,
+  gapCenter,
+  passed: false,
+
+  // random ball styling per pipe
+  topDx: (rand() - 0.5) * (PIPE_W * 0.35),
+  botDx: (rand() - 0.5) * (PIPE_W * 0.35),
+  topR: 20 + rand() * 10,
+  botR: 20 + rand() * 10,
+  topColor: BALL_COLORS[Math.floor(rand() * BALL_COLORS.length)],
+  botColor: BALL_COLORS[Math.floor(rand() * BALL_COLORS.length)],
+});
 }
 
 function flap() {
@@ -526,14 +540,14 @@ function drawPipes() {
     drawRopePost(p.x, botY, PIPE_W, botH);
     
     // yarn balls at the gap edges (SAFE positioning)
-    const r = Math.min(PIPE_W * 0.48, 26);
+    const topR = Math.min(p.topR, PIPE_W * 0.48);
+    const botR = Math.min(p.botR, PIPE_W * 0.48);
 
-    const topBallX = p.x + PIPE_W / 2;
-    const topBallY = Math.max(r + 10, topH - r - 6);
+    const topBallX = p.x + PIPE_W / 2 + p.topDx;
+    const topBallY = Math.max(topR + 10, topH - topR - 6);
 
-    const botBallX = p.x + PIPE_W / 2;
-    const botBallY = Math.min(WORLD_H - GROUND_H - r - 10, botY + r + 6);
-
+    const botBallX = p.x + PIPE_W / 2 + p.botDx;
+    const botBallY = Math.min(WORLD_H - GROUND_H - botR - 10, botY + botR + 6);
     // strings start exactly at the post ends
     // start string from the RIGHT EDGE of the post
     const postRight = p.x + PIPE_W;
