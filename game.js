@@ -471,8 +471,8 @@ function drawPipes() {
     // yarn balls at the gap edges
     const r = Math.min(PIPE_W * 0.48, 26);
 
-    const topBallX = p.x + PIPE_W / 2;
-    const topBallY = Math.max(r + 10, topH - r - 6);
+    const topBallY = topH - r;
+    const botBallY = botY + r;
 
     const botBallX = p.x + PIPE_W / 2;
     const botBallY = Math.min(WORLD_H - GROUND_H - r - 10, botY + r + 6);
