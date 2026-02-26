@@ -261,6 +261,7 @@ function reset() {
   score = 0;
   t = 0;
   sparkles = [];
+  catStyle = CAT_PALETTES[Math.floor(Math.random() * CAT_PALETTES.length)];
 
   cat.y = WORLD_H * 0.45;
   cat.vy = 0;
@@ -472,13 +473,13 @@ function drawCat() {
   ctx.rotate(cat.rot);
 
   // body
-  ctx.fillStyle = "#ffd6a6";
+  ctx.fillStyle = catStyle.body;
   ctx.beginPath();
   ctx.ellipse(0, 0, 18, 16, 0, 0, Math.PI * 2);
   ctx.fill();
 
   // ears
-  ctx.fillStyle = "#ffbf80";
+  ctx.fillStyle = catStyle.ear;
   ctx.beginPath();
   ctx.moveTo(-10, -10);
   ctx.lineTo(-18, -22);
@@ -493,7 +494,7 @@ function drawCat() {
   ctx.fill();
 
   // stripes
-  ctx.strokeStyle = "rgba(120,60,20,0.35)";
+  ctx.strokeStyle = catStyle.stripe;
   ctx.lineWidth = 3;
   ctx.beginPath();
   ctx.moveTo(-6, -4); ctx.lineTo(6, -4);
