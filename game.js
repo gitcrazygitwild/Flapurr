@@ -3,6 +3,27 @@
 //
 // Requires <script type="module" src="game.js"></script> in index.html
 
+// --- DEBUG OVERLAY (remove later) ---
+const __dbg = document.createElement("div");
+__dbg.style.cssText =
+  "position:fixed;left:8px;right:8px;bottom:8px;z-index:99999;" +
+  "background:rgba(0,0,0,.85);color:#fff;padding:10px 12px;border-radius:12px;" +
+  "font:12px/1.35 system-ui;white-space:pre-wrap;max-height:40vh;overflow:auto;";
+__dbg.textContent = "Flapurr debug: loading…";
+window.addEventListener("error", (e) => {
+  __dbg.textContent = "JS ERROR:\n" + (e?.message || e) + "\n" + (e?.filename || "") + ":" + (e?.lineno || "");
+  document.body.appendChild(__dbg);
+});
+window.addEventListener("unhandledrejection", (e) => {
+  __dbg.textContent = "PROMISE ERROR:\n" + (e?.reason?.message || e?.reason || e);
+  document.body.appendChild(__dbg);
+});
+setTimeout(() => {
+  document.body.appendChild(__dbg);
+  __dbg.textContent = "Flapurr debug: script reached runtime ✅";
+}, 600);
+
+
 import { initializeApp } from "https://www.gstatic.com/firebasejs/12.9.0/firebase-app.js";
 import {
   getFirestore,
