@@ -372,6 +372,39 @@ function drawBG() {
   drawSkyCat(x, y, s, i);
 }
   }
+  function drawSkyCat(x, y, s, i) {
+  ctx.save();
+  ctx.translate(x, y + Math.sin((t + i * 40) * 0.03) * 6);
+  ctx.scale(s, s);
+  ctx.globalAlpha = 0.18;
+  ctx.fillStyle = "#cfe3ff";
+
+  // body
+  roundRect(-18, -8, 44, 22, 11);
+  ctx.fill();
+
+  // head
+  ctx.beginPath();
+  ctx.ellipse(-10, -10, 12, 10, 0, 0, Math.PI * 2);
+  ctx.fill();
+
+  // ears
+  ctx.beginPath(); ctx.moveTo(-18, -16); ctx.lineTo(-24, -26); ctx.lineTo(-10, -22); ctx.closePath(); ctx.fill();
+  ctx.beginPath(); ctx.moveTo(-2, -16);  ctx.lineTo(-6,  -26); ctx.lineTo(6,  -22); ctx.closePath(); ctx.fill();
+
+  // tail
+  ctx.lineCap = "round";
+  ctx.lineWidth = 6;
+  ctx.strokeStyle = "#cfe3ff";
+  ctx.beginPath();
+  ctx.moveTo(24, 6);
+  ctx.quadraticCurveTo(40, 0, 34, -10);
+  ctx.stroke();
+
+  ctx.restore();
+  ctx.globalAlpha = 1;
+}
+
 }
 
 function drawFishCloud(x, y, s) {
