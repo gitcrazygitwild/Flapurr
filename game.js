@@ -652,7 +652,13 @@ function update() {
   }
 
   // draw
-  ctx.globalAlpha = 1;
+  // HARD RESET CANVAS STATE (prevents random transparency / effects leaking)
+   ctx.globalAlpha = 1;
+   ctx.globalCompositeOperation = "source-over";
+   ctx.filter = "none";
+   ctx.shadowBlur = 0;
+   ctx.shadowColor = "transparent";
+   ctx.setLineDash([]);
   drawBG();
 
 ctx.globalAlpha = 1;
