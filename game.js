@@ -364,11 +364,13 @@ function drawBG() {
   }
   ctx.globalAlpha = 1;
 
-  // floating “fish” clouds
+  // floating “cat” clouds
   for (let i = 0; i < 6; i++) {
-    const x = ((t * 0.6) + i * 120) % (WORLD_W + 160) - 80;
-    const y = 70 + (i * 53) % 220;
-    drawFishCloud(x, y, 0.9);
+  const x = ((t * 0.45) + i * 140) % (WORLD_W + 200) - 100;
+  const y = 80 + (i * 57) % 240;
+  const s = 0.6 + (i % 3) * 0.12;
+  drawSkyCat(x, y, s, i);
+}
   }
 }
 
