@@ -359,6 +359,19 @@ function drawString(fromX, fromY, toX, toY) {
 }
 
 // ---------- Input ----------
+let __lastTouchEnd = 0;
+document.addEventListener(
+  "touchend",
+  (e) => {
+    const now = Date.now();
+    if (now - __lastTouchEnd < 350) {
+      e.preventDefault(); // prevents double-tap zoom
+    }
+    __lastTouchEnd = now;
+  },
+  { passive: false }
+);
+
 canvas.addEventListener("pointerdown", (e) => {
   e.preventDefault();
 
