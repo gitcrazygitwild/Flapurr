@@ -424,7 +424,7 @@ function shade(hex, amt) { // amt: -1..+1
   ctx.fill();
 }
 
-function drawRopePost(x, y, w, h) {
+function drawRopePost(x, y, w, h, flipCaps = false) {
   const inset = 6;
   const rx = x + inset;
   const ry = y;
@@ -486,11 +486,9 @@ function drawRopePost(x, y, w, h) {
   }
 
   for (let yy = ropeTop - 40; yy < ropeTop + ropeH + 40; yy += step) {
-    const j = Math.sin((yy + t * 0.7) * 0.06) * ropeYJitter;
-
+    const j = Math.sin(yy * 0.06) * ropeYJitter; // static, no time component
     // thickness variation
-    const thick = 6.4 + (Math.sin(yy * 0.09) * 0.9) + (rand() - 0.5) * 0.6;
-
+    const thick = 6.4 + (Math.sin(yy * 0.09) * 0.9);
     // dark strand
     ctx.strokeStyle = ropeDark;
     ctx.lineWidth = thick;
@@ -521,23 +519,33 @@ function drawRopePost(x, y, w, h) {
     drawFray(rx, ropeBot - 1, rw, +1);
   }
 
-  // --- top cap (plastic) ---
-  ctx.fillStyle = "#9aa3b5";
-  roundRect(x + 2, y - 2, w - 4, capH, 10);
-  ctx.fill();
+// caps: normal = cap at top, base at bottom
+// flipCaps = cap at bottom (gap edge) and base at top
+const topCapY = flipCaps ? (y + h - capH + 2) : (y - 2);
+const baseY   = flipCaps ? (y - 2) : (y + h - baseH + 2);
 
-  ctx.fillStyle = "rgba(255,255,255,0.22)";
-  roundRect(x + 6, y + 1, w - 12, capH * 0.42, 10);
-  ctx.fill();
+// cap
+ctx.fillStyle = "#9aa3b5";
+roundRect(x + 2, topCapY, w - 4, capH, 10);
+ctx.fill();
 
-  // --- bottom base ---
-  ctx.fillStyle = "#7f889b";
-  roundRect(x - 2, y + h - baseH + 2, w + 4, baseH, 12);
-  ctx.fill();
+ctx.fillStyle = "rgba(255,255,255,0.22)";
+roundRect(x + 6, topCapY + 3, w - 12, capH * 0.42, 10);
+ctx.fill();
 
-  ctx.fillStyle = "rgba(0,0,0,0.20)";
+// base
+ctx.fillStyle = "#7f889b";
+roundRect(x - 2, baseY, w + 4, baseH, 12);
+ctx.fill();
+
+// base shadow (keep it near the bottom of whichever base is "down")
+ctx.fillStyle = "rgba(0,0,0,0.20)";
+if (!flipCaps) {
   roundRect(x - 2, y + h - 8, w + 4, 10, 10);
-  ctx.fill();
+} else {
+  roundRect(x - 2, y + 2, w + 4, 10, 10);
+}
+ctx.fill();
 }
 
 function drawString(fromX, fromY, toX, toY) {
@@ -655,8 +663,8 @@ function drawPipes() {
     const botH = (WORLD_H - GROUND_H) - botY;
 
     // posts (tan)
-    drawRopePost(p.x, 0, PIPE_W, topH);
-    drawRopePost(p.x, botY, PIPE_W, botH);
+    drawRopePost(p.x, 0, PIPE_W, topH, true);   // flipped caps for TOP post
+    drawRopePost(p.x, botY, PIPE_W, botH, false);
     
     // yarn balls at the gap edges (SAFE positioning)
     const topR = Math.min(p.topR, PIPE_W * 0.48);
@@ -890,7 +898,6 @@ ctx.globalAlpha = 1;
 drawCat();
 
 ctx.globalAlpha = 1;
-drawUI();
 
 ctx.restore();
 drawUI();
