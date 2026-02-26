@@ -484,6 +484,15 @@ function drawPipes() {
     drawString(postRight, topH, topBallX, topBallY);
     drawString(postRight, botY, botBallX, botBallY);
 
+    ctx.fillStyle = "#8b6a3f";
+    ctx.beginPath();
+    ctx.arc(postRight, topH, 3, 0, Math.PI * 2);
+    ctx.fill();
+
+    ctx.beginPath();
+    ctx.arc(postRight, botY, 3, 0, Math.PI * 2);
+    ctx.fill();
+
     drawYarnBall(topBallX, topBallY, r);
     drawYarnBall(botBallX, botBallY, r);
   }
