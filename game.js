@@ -222,6 +222,14 @@ let score = 0;
 let best = Number(localStorage.getItem("flapurr_best") || 0);
 
 const cat = { x: 120, y: WORLD_H * 0.45, r: 18, vy: 0, rot: 0 };
+const CAT_PALETTES = [
+  { body: "#ffd6a6", ear: "#ffbf80", stripe: "rgba(120,60,20,0.35)" }, // ginger
+  { body: "#cfcfd6", ear: "#b9b9c2", stripe: "rgba(50,50,60,0.28)" },   // gray
+  { body: "#2b2b2f", ear: "#3a3a40", stripe: "rgba(255,255,255,0.10)" }, // black
+  { body: "#fff2d7", ear: "#f0d9b2", stripe: "rgba(120,90,40,0.22)" },  // cream
+  { body: "#b07a4a", ear: "#9a6a40", stripe: "rgba(40,20,10,0.25)" },   // brown
+];
+let catStyle = CAT_PALETTES[Math.floor(Math.random() * CAT_PALETTES.length)];
 let pipes = [];
 let t = 0;
 
