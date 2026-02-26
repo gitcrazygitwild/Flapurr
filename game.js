@@ -563,14 +563,19 @@ function drawCat() {
 }
 
 function drawSparkles() {
+  // ensure we start clean even if previous draw changed alpha
+  ctx.globalAlpha = 1;
+
   for (const sp of sparkles) {
     ctx.globalAlpha = Math.max(0, sp.life / 30);
     ctx.font = "16px system-ui";
     ctx.textAlign = "center";
     ctx.textBaseline = "middle";
     ctx.fillText("🐟", sp.x, sp.y);
-    ctx.globalAlpha = 1;
   }
+
+  // IMPORTANT: always reset after loop (even if sparkles is empty)
+  ctx.globalAlpha = 1;
 }
 
 function drawUI() {
