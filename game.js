@@ -637,6 +637,7 @@ function update() {
   }
 
   // draw
+  ctx.globalAlpha = 1;
   drawBG();
 
 ctx.globalAlpha = 1;
