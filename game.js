@@ -38,6 +38,8 @@ import {
   serverTimestamp
 } from "https://www.gstatic.com/firebasejs/12.9.0/firebase-firestore.js";
 
+netStatus.textContent = "external game.js ran ✅";
+
 document.getElementById("netStatus").textContent = "game.js running ✅";
 
 document.getElementById("netStatus").textContent = "game.js loaded ✅";
