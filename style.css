@@ -10,7 +10,6 @@ body {
   color: #e7eefc;
 }
 
-/* Keep things centered, but make the game fill the phone nicely */
 .wrap { width: min(96vw, 520px); padding: 10px 0 14px; }
 
 .top {
@@ -33,16 +32,14 @@ h1 { margin: 0; font-size: 24px; letter-spacing: 0.3px; }
   background: #0f1626;
 }
 
-/* Canvas scales to available height on phones */
 canvas {
   display: block;
   width: 100%;
   height: min(78svh, 760px);
-  touch-action: none; /* important: prevents scroll/zoom gestures while playing */
+  touch-action: none;
   background: transparent;
 }
 
-/* Fullscreen button */
 .fs {
   position: absolute;
   right: 10px;
@@ -55,6 +52,31 @@ canvas {
   color: #e7eefc;
 }
 
+.panel {
+  margin: 10px 6px 0;
+  padding: 10px 12px;
+  border-radius: 14px;
+  background: rgba(255,255,255,0.04);
+  border: 1px solid rgba(255,255,255,0.06);
+}
+
+.panelRow {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  font-size: 13px;
+  margin-bottom: 6px;
+}
+
+.board {
+  margin: 6px 0 0;
+  padding-left: 20px;
+  font-size: 13px;
+}
+.board li { margin: 4px 0; opacity: 0.95; }
+
+.tiny { margin-top: 8px; font-size: 12px; opacity: 0.75; }
+
 .bottom {
   margin: 10px 6px 0;
   display: flex;
@@ -62,3 +84,57 @@ canvas {
   font-size: 12px;
   opacity: 0.85;
 }
+
+/* Modal */
+.modal {
+  position: fixed;
+  inset: 0;
+  display: none;
+  place-items: center;
+  background: rgba(0,0,0,0.55);
+  padding: 16px;
+}
+
+.modal.show { display: grid; }
+
+.modalCard {
+  width: min(92vw, 420px);
+  background: #0f1626;
+  border: 1px solid rgba(255,255,255,0.08);
+  border-radius: 16px;
+  padding: 16px;
+  box-shadow: 0 20px 60px rgba(0,0,0,0.6);
+}
+
+.modalTitle { font-weight: 800; font-size: 18px; }
+.modalSub { margin-top: 6px; opacity: 0.85; }
+
+.label { display: block; margin-top: 12px; font-size: 12px; opacity: 0.8; }
+.input {
+  margin-top: 6px;
+  width: 100%;
+  padding: 10px 12px;
+  border-radius: 12px;
+  border: 1px solid rgba(255,255,255,0.10);
+  background: rgba(255,255,255,0.04);
+  color: inherit;
+  outline: none;
+}
+
+.modalBtns {
+  margin-top: 12px;
+  display: flex;
+  gap: 10px;
+  justify-content: flex-end;
+}
+
+.btnPrimary, .btnGhost {
+  border: 0;
+  border-radius: 12px;
+  padding: 10px 12px;
+  font-weight: 700;
+  color: inherit;
+}
+
+.btnPrimary { background: rgba(43,214,111,0.35); }
+.btnGhost { background: rgba(255,255,255,0.06); }
