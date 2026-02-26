@@ -233,6 +233,7 @@ const CAT_PALETTES = [
   { body: "#b07a4a", ear: "#9a6a40", stripe: "rgba(40,20,10,0.25)" },   // brown
 ];
 let catStyle = CAT_PALETTES[Math.floor(Math.random() * CAT_PALETTES.length)];
+let catStripeMode = 0; // 0 none, 1 classic, 2 tabby, 3 belly
 
 // ---------- State ----------
 let started = false;
@@ -425,28 +426,55 @@ function shade(hex, amt) { // amt: -1..+1
 }
 
 // Yarn helpers
-  function drawYarnBall(cx, cy, r, base = "#ff7aa8") {
-  const g = ctx.createRadialGradient(cx - r * 0.35, cy - r * 0.35, r * 0.2, cx, cy, r);
-  g.addColorStop(0, shade(base, +0.25));
-  g.addColorStop(1, shade(base, -0.20));
+function drawYarnBall(cx, cy, r, base = "#ff7aa8") {
+  ctx.save();
+
+  // Softer, less “plastic” shading (lower contrast)
+  const g = ctx.createRadialGradient(
+    cx - r * 0.25, cy - r * 0.25, r * 0.15,
+    cx, cy, r
+  );
+  g.addColorStop(0, shade(base, +0.10));
+  g.addColorStop(1, shade(base, -0.12));
+
   ctx.fillStyle = g;
   ctx.beginPath();
   ctx.arc(cx, cy, r, 0, Math.PI * 2);
   ctx.fill();
 
-  ctx.strokeStyle = "rgba(255,255,255,0.22)";
-  ctx.lineWidth = Math.max(1.5, r * 0.08);
-  for (let i = 0; i < 6; i++) {
-    const a = (i / 6) * Math.PI;
+  // Yarn strands: lots of thin curved strokes in slightly varied tones
+  ctx.lineCap = "round";
+  const strandCount = 16;
+  for (let i = 0; i < strandCount; i++) {
+    const t = i / strandCount;
+    const a0 = t * Math.PI * 2;
+    const wob = Math.sin((i * 9.3) + r * 0.12) * 0.25;
+
+    const rr = r * (0.35 + 0.55 * t);
+    ctx.strokeStyle = `rgba(255,255,255,${0.06 + 0.04 * Math.sin(i * 2.1)})`;
+    ctx.lineWidth = Math.max(1.0, r * 0.045);
+
     ctx.beginPath();
-    ctx.arc(cx, cy, r * (0.35 + i * 0.08), a, a + Math.PI * 0.85);
+    ctx.arc(cx, cy, rr, a0 + wob, a0 + wob + Math.PI * (0.55 + 0.25 * Math.sin(i)));
     ctx.stroke();
   }
 
-  ctx.fillStyle = "rgba(255,255,255,0.18)";
-  ctx.beginPath();
-  ctx.arc(cx - r * 0.35, cy - r * 0.35, r * 0.25, 0, Math.PI * 2);
-  ctx.fill();
+  // Subtle “fiber fuzz” (tiny strokes) — keeps it yarny without glitter
+  ctx.globalAlpha = 0.10;
+  ctx.strokeStyle = "rgba(255,255,255,0.9)";
+  ctx.lineWidth = 1;
+  for (let i = 0; i < 18; i++) {
+    const a = (i / 18) * Math.PI * 2;
+    const rx = cx + Math.cos(a) * (r * (0.55 + 0.35 * ((i % 3) / 3)));
+    const ry = cy + Math.sin(a) * (r * (0.55 + 0.35 * ((i % 4) / 4)));
+    ctx.beginPath();
+    ctx.moveTo(rx, ry);
+    ctx.lineTo(rx + (Math.cos(a) * 2.2), ry + (Math.sin(a) * 2.2));
+    ctx.stroke();
+  }
+  ctx.globalAlpha = 1;
+
+  ctx.restore();
 }
 
 function drawRopePost(x, y, w, h, flipCaps = false, seed = 1) {
