@@ -911,9 +911,22 @@ function update() {
     cat.y += cat.vy;
     cat.rot = Math.max(-0.55, Math.min(1.0, cat.vy / 12));
 
-// --- mouse chase motion (springy but never catchable) ---
-const targetX = cat.x + cat.r * MOUSE_LEAD;
-const targetY = cat.y + MOUSE_YOFF + Math.sin(t * 0.12) * 2;
+// --- mouse chase motion (anchor stays near cat; drawing happens farther ahead) ---
+const anchorX = cat.x + cat.r * MOUSE_ANCHOR;
+const anchorY = cat.y + MOUSE_YOFF + Math.sin(t * 0.12) * 2;
+
+// spring + damping toward the anchor
+mouse.vx += (anchorX - mouse.x) * 0.18;
+mouse.vy += (anchorY - mouse.y) * 0.18;
+mouse.vx *= 0.72;
+mouse.vy *= 0.72;
+mouse.x += mouse.vx;
+mouse.y += mouse.vy;
+
+// clamp anchor position to front half of cat hitbox (safe)
+const minX = cat.x + cat.r * 0.35;
+const maxX = cat.x + cat.r * 0.90;
+mouse.x = Math.max(minX, Math.min(maxX, mouse.x));
 
 // simple spring + damping
 mouse.vx += (targetX - mouse.x) * 0.18;
