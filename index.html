@@ -102,6 +102,37 @@
     </div>
   </div>
 
+<script>
+  (function () {
+    function show(msg) {
+      var box = document.getElementById("errbox");
+      if (!box) {
+        box = document.createElement("div");
+        box.id = "errbox";
+        box.style.cssText =
+          "position:fixed;left:8px;right:8px;top:8px;z-index:999999;" +
+          "background:rgba(0,0,0,.86);color:#fff;padding:10px 12px;border-radius:12px;" +
+          "font:12px/1.35 system-ui;white-space:pre-wrap;max-height:42vh;overflow:auto;";
+        document.body.appendChild(box);
+      }
+      box.textContent = msg;
+    }
+
+    window.addEventListener("error", function (e) {
+      show("JS ERROR:\n" + (e.message || e) + "\n" + (e.filename || "") + ":" + (e.lineno || ""));
+    });
+
+    window.addEventListener("unhandledrejection", function (e) {
+      show("PROMISE ERROR:\n" + (e.reason && e.reason.message ? e.reason.message : String(e.reason)));
+    });
+
+    // shows even if nothing breaks, so we know this ran
+    setTimeout(function () {
+      show("Debugger loaded ✅\nIf the game is blank, the error will appear here.");
+    }, 400);
+  })();
+</script>
+
   <!-- GAME SCRIPT -->
   <!-- IMPORTANT: must be type="module" -->
   <script type="module" src="game.js?v=7"></script>
