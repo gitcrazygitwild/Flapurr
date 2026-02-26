@@ -297,6 +297,63 @@ pipes.push({
 });
 }
 
+function shade(hex, amt) {
+  const h = hex.replace("#", "");
+  const n = parseInt(h.length === 3 ? h.split("").map(c=>c+c).join("") : h, 16);
+  let r = (n >> 16) & 255, g = (n >> 8) & 255, b = n & 255;
+  r = Math.max(0, Math.min(255, Math.round(r + amt * 255)));
+  g = Math.max(0, Math.min(255, Math.round(g + amt * 255)));
+  b = Math.max(0, Math.min(255, Math.round(b + amt * 255)));
+  const to = (v) => v.toString(16).padStart(2, "0");
+  return `#${to(r)}${to(g)}${to(b)}`;
+}
+
+function drawFray(rx, y, rw, dir /* -1 up, +1 down */) {
+  // little fibers poking out of the rope edge
+  ctx.save();
+  ctx.globalAlpha = 0.22;
+  ctx.strokeStyle = "rgba(255,255,255,0.55)";
+  ctx.lineWidth = 1.2;
+  ctx.lineCap = "round";
+
+  for (let i = 0; i < 18; i++) {
+    const x = rx + 6 + rand() * (rw - 12);
+    const len = 3 + rand() * 8;
+    ctx.beginPath();
+    ctx.moveTo(x, y);
+    ctx.lineTo(x + (rand() - 0.5) * 6, y + dir * len);
+    ctx.stroke();
+  }
+  ctx.restore();
+}
+
+function drawKnot(cx, cy, r, baseHex) {
+  // knot = small fuzzy oval + a couple cross strands
+  ctx.save();
+  const g = ctx.createRadialGradient(cx - r*0.3, cy - r*0.3, r*0.2, cx, cy, r);
+  g.addColorStop(0, shade(baseHex, +0.10));
+  g.addColorStop(1, shade(baseHex, -0.25));
+  ctx.fillStyle = g;
+  ctx.beginPath();
+  ctx.ellipse(cx, cy, r*1.25, r*0.9, (rand()-0.5)*0.4, 0, Math.PI*2);
+  ctx.fill();
+
+  ctx.globalAlpha = 0.25;
+  ctx.strokeStyle = "rgba(255,255,255,0.35)";
+  ctx.lineWidth = 2;
+  ctx.beginPath();
+  ctx.moveTo(cx - r*1.1, cy - r*0.2);
+  ctx.lineTo(cx + r*1.1, cy + r*0.2);
+  ctx.stroke();
+
+  ctx.beginPath();
+  ctx.moveTo(cx - r*0.8, cy + r*0.35);
+  ctx.lineTo(cx + r*0.8, cy - r*0.35);
+  ctx.stroke();
+
+  ctx.restore();
+}
+
 function flap() {
   if (!started) started = true;
   if (gameOver) return;
@@ -379,25 +436,36 @@ function shade(hex, amt) { // amt: -1..+1
 }
 
 function drawRopePost(x, y, w, h) {
-  // --- base core (slight inset) ---
   const inset = 6;
   const rx = x + inset;
   const ry = y;
   const rw = w - inset * 2;
   const rh = h;
 
-  // soft core behind rope
+  // core behind rope
   ctx.fillStyle = "#cdb892";
   roundRect(rx, ry, rw, rh, 10);
   ctx.fill();
 
+  // caps sizes
+  const capH = Math.min(16, Math.max(10, h * 0.18));
+  const baseH = Math.min(22, Math.max(14, h * 0.22));
+
+  // rope area excludes caps a bit so fray sits nicely
+  const ropeTop = ry + capH * 0.70;
+  const ropeBot = ry + rh - baseH * 0.75;
+  const ropeH = Math.max(0, ropeBot - ropeTop);
+
+  // rope color family
+  const ropeBase = "#8b6a3f";
+
   // --- rope texture (spiral wraps) ---
   ctx.save();
   ctx.beginPath();
-  roundRect(rx, ry, rw, rh, 10);
+  roundRect(rx, ropeTop, rw, ropeH, 10);
   ctx.clip();
 
-  // darker edge shading to feel cylindrical
+  // cylindrical shading
   const edge = ctx.createLinearGradient(rx, 0, rx + rw, 0);
   edge.addColorStop(0.0, "rgba(0,0,0,0.18)");
   edge.addColorStop(0.18, "rgba(0,0,0,0.06)");
@@ -405,68 +473,83 @@ function drawRopePost(x, y, w, h) {
   edge.addColorStop(0.82, "rgba(0,0,0,0.06)");
   edge.addColorStop(1.0, "rgba(0,0,0,0.18)");
   ctx.fillStyle = edge;
-  ctx.fillRect(rx, ry, rw, rh);
+  ctx.fillRect(rx, ropeTop, rw, ropeH);
 
-  // rope spiral lines (more horizontal than before)
-  const step = 12;                 // distance between wraps
-  const slope = 0.35;              // 0 = horizontal, 1 = 45deg. Lower = less vertical
-  const ropeYJitter = 1.4;
+  // spiral parameters (less vertical)
+  const step = 12;
+  const slope = 0.28; // smaller = more horizontal
+  const ropeYJitter = 1.6;
 
-  // two-tone rope
-  const ropeDark = "rgba(125, 92, 48, 0.70)";
+  const ropeDark = "rgba(125, 92, 48, 0.72)";
   const ropeLight = "rgba(255, 255, 255, 0.22)";
 
   ctx.lineCap = "round";
 
-  // draw wraps across the post height
-  for (let yy = ry - 40; yy < ry + rh + 40; yy += step) {
-    const j = (Math.sin((yy + t * 0.7) * 0.06) * ropeYJitter);
+  // occasional knots (per post)
+  const knotCount = ropeH > 120 ? 1 + (rand() < 0.25 ? 1 : 0) : (rand() < 0.20 ? 1 : 0);
+  const knots = [];
+  for (let i = 0; i < knotCount; i++) {
+    knots.push({
+      x: rx + rw * (0.30 + rand() * 0.40),
+      y: ropeTop + ropeH * (0.15 + rand() * 0.70),
+      r: 5 + rand() * 4
+    });
+  }
 
-    // dark strand (thicker)
+  for (let yy = ropeTop - 40; yy < ropeTop + ropeH + 40; yy += step) {
+    const j = Math.sin((yy + t * 0.7) * 0.06) * ropeYJitter;
+
+    // thickness variation
+    const thick = 6.4 + (Math.sin(yy * 0.09) * 0.9) + (rand() - 0.5) * 0.6;
+
+    // dark strand
     ctx.strokeStyle = ropeDark;
-    ctx.lineWidth = 7;
+    ctx.lineWidth = thick;
     ctx.beginPath();
     ctx.moveTo(rx - 30, yy + j);
     ctx.lineTo(rx + rw + 30, yy + j + rw * slope);
     ctx.stroke();
 
-    // highlight strand (thin offset)
+    // highlight
     ctx.strokeStyle = ropeLight;
-    ctx.lineWidth = 2.2;
+    ctx.lineWidth = Math.max(1.8, thick * 0.32);
     ctx.beginPath();
     ctx.moveTo(rx - 30, yy + j - 1);
     ctx.lineTo(rx + rw + 30, yy + j + rw * slope - 1);
     ctx.stroke();
   }
 
+  // draw knots on top of wraps
+  for (const k of knots) {
+    drawKnot(k.x, k.y, k.r, ropeBase);
+  }
+
   ctx.restore();
 
-  // --- top cap ---
-  const capH = Math.min(16, Math.max(10, h * 0.18));
-  const capR = 10;
+  // frayed edges where rope meets caps
+  if (ropeH > 20) {
+    drawFray(rx, ropeTop + 1, rw, -1);
+    drawFray(rx, ropeBot - 1, rw, +1);
+  }
 
-  // top plate
-  ctx.fillStyle = "#9aa3b5"; // cool grey plastic
-  roundRect(x + 2, y - 2, w - 4, capH, capR);
+  // --- top cap (plastic) ---
+  ctx.fillStyle = "#9aa3b5";
+  roundRect(x + 2, y - 2, w - 4, capH, 10);
   ctx.fill();
 
-  // top highlight
   ctx.fillStyle = "rgba(255,255,255,0.22)";
-  roundRect(x + 6, y + 1, w - 12, capH * 0.42, capR);
+  roundRect(x + 6, y + 1, w - 12, capH * 0.42, 10);
   ctx.fill();
 
-  // --- bottom base (bigger) ---
-  const baseH = Math.min(22, Math.max(14, h * 0.22));
-  ctx.fillStyle = "#7f889b"; // darker base
+  // --- bottom base ---
+  ctx.fillStyle = "#7f889b";
   roundRect(x - 2, y + h - baseH + 2, w + 4, baseH, 12);
   ctx.fill();
 
-  // base shadow
   ctx.fillStyle = "rgba(0,0,0,0.20)";
   roundRect(x - 2, y + h - 8, w + 4, 10, 10);
   ctx.fill();
 }
-
 
 function drawString(fromX, fromY, toX, toY) {
   ctx.strokeStyle = "rgba(255,255,255,0.25)";
