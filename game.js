@@ -80,9 +80,10 @@ async function initFirebase() {
     await incrementPlays();
     await refreshLeaderboard();
   } catch (e) {
-    console.error(e);
-    netStatus.textContent = "Couldn’t connect to Firebase (leaderboard disabled).";
-  }
+  console.error(e);
+  netStatus.textContent =
+    "Firebase error: " + (e?.message || String(e));
+}
 }
 
 async function incrementPlays() {
