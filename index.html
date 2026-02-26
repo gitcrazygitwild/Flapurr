@@ -3,27 +3,108 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
-  <title>Flapurr!</title>
+
+  <title>Flapurr! 🐾</title>
+
+  <!-- Styles -->
   <link rel="stylesheet" href="style.css" />
+
+  <!-- Prevent weird mobile zoom / scroll -->
+  <style>
+    html, body { margin: 0; padding: 0; background: #0b0f17; }
+  </style>
 </head>
+
 <body>
+
   <div class="wrap">
+
+    <!-- HEADER -->
     <header class="top">
-      <h1>Flapurr!</h1>
-      <div class="hint">Tap to flap • R to restart (desktop)</div>
+      <h1>Flapurr! 🐱</h1>
+      <div class="hint">
+        Tap to flap • Dodge scratch posts • Submit your score
+      </div>
     </header>
 
+    <!-- GAME AREA -->
     <div class="stage">
-      <canvas id="c" width="420" height="640" aria-label="Flapurr game canvas"></canvas>
-      <button id="fs" class="fs" type="button" aria-label="Fullscreen">⛶</button>
+      <canvas id="c" width="420" height="640"></canvas>
+
+      <!-- Fullscreen button -->
+      <button id="fs" class="fs" type="button">⛶</button>
     </div>
 
+    <!-- LEADERBOARD + STATS -->
+    <section class="panel">
+
+      <div class="panelRow">
+        <div>
+          <strong>🐾 Total plays:</strong>
+          <span id="plays">—</span>
+        </div>
+
+        <div>
+          <strong>🏆 Top Cats</strong>
+        </div>
+      </div>
+
+      <ol id="board" class="board"></ol>
+
+      <div class="tiny" id="netStatus">
+        Connecting to cat HQ…
+      </div>
+    </section>
+
+    <!-- FOOTER -->
     <footer class="bottom">
       <span id="status">Ready</span>
-      <span class="right">Made with 🐾</span>
+      <span class="right">Made with 🐟</span>
     </footer>
+
   </div>
 
-  <script src="game.js"></script>
+  <!-- SCORE SUBMIT MODAL -->
+  <div class="modal" id="modal" aria-hidden="true">
+    <div class="modalCard">
+
+      <div class="modalTitle">
+        MEOWTCH! Submit your score?
+      </div>
+
+      <div class="modalSub">
+        Score: <span id="finalScore">0</span>
+      </div>
+
+      <label class="label" for="name">
+        Cat name (1–16 chars)
+      </label>
+
+      <input
+        id="name"
+        class="input"
+        maxlength="16"
+        placeholder="Sir Pounce-a-lot"
+      />
+
+      <div class="modalBtns">
+        <button id="submit" class="btnPrimary" type="button">
+          Submit
+        </button>
+
+        <button id="skip" class="btnGhost" type="button">
+          Skip
+        </button>
+      </div>
+
+      <div class="tiny" id="submitStatus"></div>
+
+    </div>
+  </div>
+
+  <!-- GAME SCRIPT -->
+  <!-- IMPORTANT: must be type="module" -->
+  <script type="module" src="game.js"></script>
+
 </body>
 </html>
