@@ -242,9 +242,14 @@ let best = Number(localStorage.getItem("flapurr_best") || 0);
 
 const cat = { x: 120, y: WORLD_H * 0.45, r: 18, vy: 0, rot: 0 };
 // Mouse bait the cat chases (purely visual, stays within cat hitbox front half)
+// Mouse bait the cat chases
 const mouse = { x: cat.x, y: cat.y, vx: 0, vy: 0 };
-const MOUSE_LEAD = 0.72;   // fraction of cat.r (keeps mouse inside hitbox)
-const MOUSE_YOFF = 6;      // sit a bit lower than cat center
+
+const MOUSE_ANCHOR = 0.72;   // stays within cat hitbox (logic position)
+const MOUSE_YOFF   = 6;
+
+const MOUSE_GAP    = 16;     // <-- daylight between cat + mouse (tune 12–26)
+const MOUSE_DRAW_AHEAD = 10; // extra forward bias based on cat speed
 let pipes = [];
 let t = 0;
 
