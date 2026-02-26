@@ -241,6 +241,10 @@ let score = 0; // displayed as treats
 let best = Number(localStorage.getItem("flapurr_best") || 0);
 
 const cat = { x: 120, y: WORLD_H * 0.45, r: 18, vy: 0, rot: 0 };
+// Mouse bait the cat chases (purely visual, stays within cat hitbox front half)
+const mouse = { x: cat.x, y: cat.y, vx: 0, vy: 0 };
+const MOUSE_LEAD = 0.72;   // fraction of cat.r (keeps mouse inside hitbox)
+const MOUSE_YOFF = 6;      // sit a bit lower than cat center
 let pipes = [];
 let t = 0;
 
@@ -277,6 +281,11 @@ function reset() {
   cat.y = WORLD_H * 0.45;
   cat.vy = 0;
   cat.rot = 0;
+
+  mouse.x = cat.x + cat.r * MOUSE_LEAD;
+  mouse.y = cat.y + MOUSE_YOFF;
+  mouse.vx = 0;
+  mouse.vy = 0;
 
   pipes = [];
   for (let i = 0; i < 4; i++) addPipe(WORLD_W + 200 + i * PIPE_SPACING);
