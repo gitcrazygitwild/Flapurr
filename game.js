@@ -464,7 +464,7 @@ function drawPipes() {
     const botH = (WORLD_H - GROUND_H) - botY;
 
     // subtle columns for readability
-    ctx.fillStyle = "#2a3354";
+    ctx.fillStyle = "#c9a46a";   // tan
     roundRect(p.x, 0, PIPE_W, topH, 12); ctx.fill();
     roundRect(p.x, botY, PIPE_W, botH, 12); ctx.fill();
 
