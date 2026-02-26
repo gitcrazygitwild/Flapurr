@@ -478,8 +478,11 @@ function drawPipes() {
     const botBallY = Math.min(WORLD_H - GROUND_H - r - 10, botY + r + 6);
 
     // strings start exactly at the post ends
-    drawString(topBallX, topH, topBallX - 18, topH + 26);
-    drawString(botBallX, botY, botBallX + 18, botY - 26);
+    // start string from the RIGHT EDGE of the post
+    const postRight = p.x + PIPE_W;
+
+    drawString(postRight, topH, topBallX, topBallY);
+    drawString(postRight, botY, botBallX, botBallY);
 
     drawYarnBall(topBallX, topBallY, r);
     drawYarnBall(botBallX, botBallY, r);
