@@ -747,15 +747,16 @@ function update() {
     sp.life -= 1;
   }
 
-  // draw
-  // HARD RESET CANVAS STATE (prevents random transparency / effects leaking)
-   ctx.globalAlpha = 1;
-   ctx.globalCompositeOperation = "source-over";
-   ctx.filter = "none";
-   ctx.shadowBlur = 0;
-   ctx.shadowColor = "transparent";
-   ctx.setLineDash([]);
-  drawBG();
+// draw (bulletproof state reset)
+ctx.save();
+ctx.globalAlpha = 1;
+ctx.globalCompositeOperation = "source-over";
+ctx.filter = "none";
+ctx.shadowBlur = 0;
+ctx.shadowColor = "transparent";
+ctx.setLineDash([]);
+
+drawBG();
 
 ctx.globalAlpha = 1;
 drawPipes();
@@ -770,6 +771,9 @@ ctx.globalAlpha = 1;
 drawCat();
 
 ctx.globalAlpha = 1;
+drawUI();
+
+ctx.restore();
 drawUI();
 
   requestAnimationFrame(update);
