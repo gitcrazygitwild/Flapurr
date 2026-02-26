@@ -910,9 +910,9 @@ ctx.globalAlpha = 1;
 drawCat();
 
 ctx.globalAlpha = 1;
-
-ctx.restore();
 drawUI();
+ctx.restore();
+
 
   requestAnimationFrame(update);
 }
