@@ -1,28 +1,6 @@
 // game.js (ES module) — Flapurr!
-// Cat-themed flappy game + Firebase Firestore leaderboard + total plays.
-//
-// Requires <script type="module" src="game.js"></script> in index.html
-
-// --- DEBUG OVERLAY (remove later) ---
-const __dbg = document.createElement("div");
-__dbg.style.cssText =
-  "position:fixed;left:8px;right:8px;bottom:8px;z-index:99999;" +
-  "background:rgba(0,0,0,.85);color:#fff;padding:10px 12px;border-radius:12px;" +
-  "font:12px/1.35 system-ui;white-space:pre-wrap;max-height:40vh;overflow:auto;";
-__dbg.textContent = "Flapurr debug: loading…";
-window.addEventListener("error", (e) => {
-  __dbg.textContent = "JS ERROR:\n" + (e?.message || e) + "\n" + (e?.filename || "") + ":" + (e?.lineno || "");
-  document.body.appendChild(__dbg);
-});
-window.addEventListener("unhandledrejection", (e) => {
-  __dbg.textContent = "PROMISE ERROR:\n" + (e?.reason?.message || e?.reason || e);
-  document.body.appendChild(__dbg);
-});
-setTimeout(() => {
-  document.body.appendChild(__dbg);
-  __dbg.textContent = "Flapurr debug: script reached runtime ✅";
-}, 600);
-
+// Firebase Firestore leaderboard + total plays + name entry modal
+// Random cat color each run + floating sky cats + yarn ball gates + treat counter UI
 
 import { initializeApp } from "https://www.gstatic.com/firebasejs/12.9.0/firebase-app.js";
 import {
@@ -38,15 +16,7 @@ import {
   serverTimestamp
 } from "https://www.gstatic.com/firebasejs/12.9.0/firebase-firestore.js";
 
-document.getElementById("netStatus").textContent = "GAME.JS MODULE STARTED ✅";
-
-netStatus.textContent = "external game.js ran ✅";
-
-document.getElementById("netStatus").textContent = "game.js running ✅";
-
-document.getElementById("netStatus").textContent = "game.js loaded ✅";
-
-// ---------- Firebase config (yours) ----------
+// ---------- Firebase config ----------
 const firebaseConfig = {
   apiKey: "AIzaSyCtm5P6i-nS-J6BRFu9qNu1MzfCvzLIinY",
   authDomain: "flapurr-web.firebaseapp.com",
@@ -74,22 +44,26 @@ const submitBtn = document.getElementById("submit");
 const skipBtn = document.getElementById("skip");
 const submitStatus = document.getElementById("submitStatus");
 
-// ---------- Firebase init ----------
+const setNet = (m) => { if (netStatus) netStatus.textContent = m; };
+
+// iOS pinch/tap zoom weirdness helper
+document.addEventListener("gesturestart", (e) => e.preventDefault(), { passive: false });
+
+// ---------- Firebase ----------
 let db = null;
 
 async function initFirebase() {
   try {
     const app = initializeApp(firebaseConfig);
     db = getFirestore(app);
-    netStatus.textContent = "Connected to cat HQ ✅";
+    setNet("Connected to cat HQ ✅");
 
     await incrementPlays();
     await refreshLeaderboard();
   } catch (e) {
-  console.error(e);
-  netStatus.textContent =
-    "Firebase error: " + (e?.message || String(e));
-}
+    console.error(e);
+    setNet("Firebase error: " + (e?.message || String(e)));
+  }
 }
 
 async function incrementPlays() {
@@ -149,7 +123,7 @@ async function submitScore(name, score) {
   return { ok: true, msg: "Submitted! 🐾" };
 }
 
-// ---------- Modal UI ----------
+// ---------- Modal ----------
 let lastGameScore = 0;
 
 function openModal(score) {
@@ -187,13 +161,9 @@ submitBtn.addEventListener("click", async () => {
 });
 
 skipBtn.addEventListener("click", () => closeModal());
+modal.addEventListener("pointerdown", (e) => { if (e.target === modal) closeModal(); });
 
-// Tap outside card closes modal (nice on mobile)
-modal.addEventListener("pointerdown", (e) => {
-  if (e.target === modal) closeModal();
-});
-
-// ---------- Mobile-friendly canvas scaling ----------
+// ---------- Canvas scaling ----------
 const WORLD_W = 420;
 const WORLD_H = 640;
 
@@ -222,7 +192,6 @@ resizeCanvasToCSS();
 window.addEventListener("resize", resizeCanvasToCSS);
 window.addEventListener("orientationchange", resizeCanvasToCSS);
 
-// Fullscreen (best on Android/desktop; iOS Safari may ignore)
 fsBtn?.addEventListener("click", async () => {
   try {
     const el = document.querySelector(".stage");
@@ -245,40 +214,41 @@ const GROUND_H = 86;
 let rngSeed = Math.floor(Math.random() * 1e9);
 const rand = () => ((rngSeed = (rngSeed * 1664525 + 1013904223) >>> 0) / 4294967296);
 
-// ---------- Game state ----------
-let started = false;
-let gameOver = false;
-let score = 0;
-let best = Number(localStorage.getItem("flapurr_best") || 0);
-
-const cat = { x: 120, y: WORLD_H * 0.45, r: 18, vy: 0, rot: 0 };
+// ---------- Cat palettes (random each reset) ----------
 const CAT_PALETTES = [
-  { body: "#ffd6a6", ear: "#ffbf80", stripe: "rgba(120,60,20,0.35)" }, // ginger
+  { body: "#ffd6a6", ear: "#ffbf80", stripe: "rgba(120,60,20,0.35)" },  // ginger
   { body: "#cfcfd6", ear: "#b9b9c2", stripe: "rgba(50,50,60,0.28)" },   // gray
-  { body: "#2b2b2f", ear: "#3a3a40", stripe: "rgba(255,255,255,0.10)" }, // black
+  { body: "#2b2b2f", ear: "#3a3a40", stripe: "rgba(255,255,255,0.10)" },// black
   { body: "#fff2d7", ear: "#f0d9b2", stripe: "rgba(120,90,40,0.22)" },  // cream
   { body: "#b07a4a", ear: "#9a6a40", stripe: "rgba(40,20,10,0.25)" },   // brown
 ];
 let catStyle = CAT_PALETTES[Math.floor(Math.random() * CAT_PALETTES.length)];
+
+// ---------- State ----------
+let started = false;
+let gameOver = false;
+let score = 0; // displayed as treats
+let best = Number(localStorage.getItem("flapurr_best") || 0);
+
+const cat = { x: 120, y: WORLD_H * 0.45, r: 18, vy: 0, rot: 0 };
 let pipes = [];
 let t = 0;
 
-// Sparkles = “treat crumbs”
+// Treat “sparkles”
 let sparkles = []; // {x,y,vx,vy,life}
 
-// ---------- Audio (tiny synth meows; no files) ----------
+// ---------- Tiny synth sounds ----------
 let audioCtx = null;
-
 function beep(freq, dur = 0.06, type = "triangle", gain = 0.04) {
   try {
     audioCtx = audioCtx || new (window.AudioContext || window.webkitAudioContext)();
-    // iOS requires user gesture to start; pointerdown triggers flap() which calls beep()
     const o = audioCtx.createOscillator();
     const g = audioCtx.createGain();
     o.type = type;
     o.frequency.value = freq;
     g.gain.value = gain;
-    o.connect(g); g.connect(audioCtx.destination);
+    o.connect(g);
+    g.connect(audioCtx.destination);
     o.start();
     o.stop(audioCtx.currentTime + dur);
   } catch (_) {}
@@ -291,6 +261,7 @@ function reset() {
   score = 0;
   t = 0;
   sparkles = [];
+
   catStyle = CAT_PALETTES[Math.floor(Math.random() * CAT_PALETTES.length)];
 
   cat.y = WORLD_H * 0.45;
@@ -309,14 +280,12 @@ function addPipe(x) {
   const centerMin = marginTop + PIPE_GAP / 2;
   const centerMax = WORLD_H - marginBottom - PIPE_GAP / 2;
   const gapCenter = centerMin + rand() * (centerMax - centerMin);
-
   pipes.push({ x, gapCenter, passed: false });
 }
 
 function flap() {
   if (!started) started = true;
   if (gameOver) return;
-
   cat.vy = FLAP_VY;
   beep(520, 0.04, "square", 0.03);
 }
@@ -332,7 +301,7 @@ function setGameOver() {
     localStorage.setItem("flapurr_best", String(best));
   }
 
-  statusEl.textContent = `Game Over • Score: ${score} • Best: ${best} • Tap to restart`;
+  statusEl.textContent = `Game Over • Treats: ${score} • Best: ${best} • Tap to restart`;
   openModal(score);
 }
 
@@ -355,23 +324,52 @@ function roundRect(x, y, w, h, r) {
   ctx.closePath();
 }
 
-// ---------- Input ----------
-document.addEventListener("gesturestart", (e) => e.preventDefault(), { passive: false });
+// Yarn helpers
+function drawYarnBall(cx, cy, r) {
+  const g = ctx.createRadialGradient(cx - r * 0.35, cy - r * 0.35, r * 0.2, cx, cy, r);
+  g.addColorStop(0, "#ff7aa8");
+  g.addColorStop(1, "#c53a6c");
+  ctx.fillStyle = g;
+  ctx.beginPath();
+  ctx.arc(cx, cy, r, 0, Math.PI * 2);
+  ctx.fill();
 
+  ctx.strokeStyle = "rgba(255,255,255,0.22)";
+  ctx.lineWidth = Math.max(1.5, r * 0.08);
+  for (let i = 0; i < 6; i++) {
+    const a = (i / 6) * Math.PI;
+    ctx.beginPath();
+    ctx.arc(cx, cy, r * (0.35 + i * 0.08), a, a + Math.PI * 0.85);
+    ctx.stroke();
+  }
+
+  ctx.fillStyle = "rgba(255,255,255,0.18)";
+  ctx.beginPath();
+  ctx.arc(cx - r * 0.35, cy - r * 0.35, r * 0.25, 0, Math.PI * 2);
+  ctx.fill();
+}
+
+function drawString(fromX, fromY, toX, toY) {
+  ctx.strokeStyle = "rgba(255,255,255,0.25)";
+  ctx.lineWidth = 2;
+  ctx.beginPath();
+  ctx.moveTo(fromX, fromY);
+  ctx.quadraticCurveTo((fromX + toX) / 2, (fromY + toY) / 2 + 12, toX, toY);
+  ctx.stroke();
+}
+
+// ---------- Input ----------
 canvas.addEventListener("pointerdown", (e) => {
   e.preventDefault();
 
-  // If game over: close modal and restart quickly
   if (gameOver) {
     closeModal();
     reset();
     started = true;
   }
-
   flap();
 }, { passive: false });
 
-// Desktop keyboard support
 window.addEventListener("keydown", (e) => {
   if (e.code === "Space") { e.preventDefault(); flap(); }
   if (e.key.toLowerCase() === "r") { e.preventDefault(); closeModal(); reset(); }
@@ -396,15 +394,16 @@ function drawBG() {
   }
   ctx.globalAlpha = 1;
 
-  // floating “cat” clouds
+  // floating sky cats
   for (let i = 0; i < 6; i++) {
-  const x = ((t * 0.45) + i * 140) % (WORLD_W + 200) - 100;
-  const y = 80 + (i * 57) % 240;
-  const s = 0.6 + (i % 3) * 0.12;
-  drawSkyCat(x, y, s, i);
-}
+    const x = ((t * 0.45) + i * 140) % (WORLD_W + 200) - 100;
+    const y = 80 + (i * 57) % 240;
+    const s = 0.6 + (i % 3) * 0.12;
+    drawSkyCat(x, y, s, i);
   }
-  function drawSkyCat(x, y, s, i) {
+}
+
+function drawSkyCat(x, y, s, i) {
   ctx.save();
   ctx.translate(x, y + Math.sin((t + i * 40) * 0.03) * 6);
   ctx.scale(s, s);
@@ -437,69 +436,31 @@ function drawBG() {
   ctx.globalAlpha = 1;
 }
 
-}
-
-function drawFishCloud(x, y, s) {
-  ctx.save();
-  ctx.translate(x, y);
-  ctx.scale(s, s);
-  ctx.globalAlpha = 0.32;
-  ctx.fillStyle = "#a9c7ff";
-
-  // body
-  roundRect(-22, -10, 64, 26, 12);
-  ctx.fill();
-
-  // tail
-  ctx.beginPath();
-  ctx.moveTo(42, 3);
-  ctx.lineTo(58, -6);
-  ctx.lineTo(58, 12);
-  ctx.closePath();
-  ctx.fill();
-
-  // eye
-  ctx.globalAlpha = 0.55;
-  ctx.fillStyle = "#0b1020";
-  ctx.beginPath();
-  ctx.arc(-6, 0, 2.2, 0, Math.PI * 2);
-  ctx.fill();
-
-  ctx.restore();
-  ctx.globalAlpha = 1;
-}
-
 function drawPipes() {
   for (const p of pipes) {
     const topH = p.gapCenter - PIPE_GAP / 2;
     const botY = p.gapCenter + PIPE_GAP / 2;
     const botH = (WORLD_H - GROUND_H) - botY;
 
-    // “Scratch post” style
-    const pg = ctx.createLinearGradient(p.x, 0, p.x + PIPE_W, 0);
-    pg.addColorStop(0, "#cfa77a");
-    pg.addColorStop(1, "#b48a5c");
-    ctx.fillStyle = pg;
-
+    // subtle columns for readability
+    ctx.fillStyle = "rgba(255,255,255,0.04)";
     roundRect(p.x, 0, PIPE_W, topH, 12); ctx.fill();
     roundRect(p.x, botY, PIPE_W, botH, 12); ctx.fill();
 
-    // scratches
-    ctx.strokeStyle = "rgba(40,20,10,0.25)";
-    ctx.lineWidth = 2;
-    for (let i = 0; i < 6; i++) {
-      const sx = p.x + 12 + i * 9;
+    // yarn balls at the gap edges
+    const r = Math.min(PIPE_W * 0.48, 26);
 
-      ctx.beginPath();
-      ctx.moveTo(sx, 12);
-      ctx.lineTo(sx + 6, topH - 18);
-      ctx.stroke();
+    const topBallX = p.x + PIPE_W / 2;
+    const topBallY = Math.max(r + 10, topH - r - 6);
 
-      ctx.beginPath();
-      ctx.moveTo(sx, botY + 18);
-      ctx.lineTo(sx + 6, botY + botH - 18);
-      ctx.stroke();
-    }
+    const botBallX = p.x + PIPE_W / 2;
+    const botBallY = Math.min(WORLD_H - GROUND_H - r - 10, botY + r + 6);
+
+    drawString(topBallX, topBallY + r, topBallX - 18, topBallY + r + 34);
+    drawString(botBallX, botBallY - r, botBallX + 18, botBallY - r - 34);
+
+    drawYarnBall(topBallX, topBallY, r);
+    drawYarnBall(botBallX, botBallY, r);
   }
 }
 
@@ -507,7 +468,7 @@ function drawGround() {
   ctx.fillStyle = "#0a0f1c";
   ctx.fillRect(0, WORLD_H - GROUND_H, WORLD_W, GROUND_H);
 
-  // pawprint pattern
+  // pawprints
   ctx.globalAlpha = 0.18;
   for (let x = 0; x < WORLD_W + 40; x += 60) {
     const px = x - (t * 1.2) % 60;
@@ -547,25 +508,15 @@ function drawCat() {
 
   // ears
   ctx.fillStyle = catStyle.ear;
-  ctx.beginPath();
-  ctx.moveTo(-10, -10);
-  ctx.lineTo(-18, -22);
-  ctx.lineTo(-2, -18);
-  ctx.closePath();
-  ctx.fill();
-  ctx.beginPath();
-  ctx.moveTo(10, -10);
-  ctx.lineTo(18, -22);
-  ctx.lineTo(2, -18);
-  ctx.closePath();
-  ctx.fill();
+  ctx.beginPath(); ctx.moveTo(-10, -10); ctx.lineTo(-18, -22); ctx.lineTo(-2, -18); ctx.closePath(); ctx.fill();
+  ctx.beginPath(); ctx.moveTo(10, -10);  ctx.lineTo(18, -22);  ctx.lineTo(2, -18);  ctx.closePath(); ctx.fill();
 
   // stripes
   ctx.strokeStyle = catStyle.stripe;
   ctx.lineWidth = 3;
   ctx.beginPath();
   ctx.moveTo(-6, -4); ctx.lineTo(6, -4);
-  ctx.moveTo(-7, 2); ctx.lineTo(7, 2);
+  ctx.moveTo(-7, 2);  ctx.lineTo(7, 2);
   ctx.stroke();
 
   // eyes
@@ -578,13 +529,13 @@ function drawCat() {
   ctx.lineWidth = 1.5;
   for (const s of [-1, 1]) {
     ctx.beginPath();
-    ctx.moveTo(8 * s, 4);  ctx.lineTo(20 * s, 1);
-    ctx.moveTo(8 * s, 6);  ctx.lineTo(20 * s, 6);
+    ctx.moveTo(8 * s, 4); ctx.lineTo(20 * s, 1);
+    ctx.moveTo(8 * s, 6); ctx.lineTo(20 * s, 6);
     ctx.stroke();
   }
 
   // tail
-  ctx.strokeStyle = "#ffbf80";
+  ctx.strokeStyle = catStyle.ear;
   ctx.lineWidth = 6;
   ctx.lineCap = "round";
   ctx.beginPath();
@@ -598,10 +549,10 @@ function drawCat() {
 function drawSparkles() {
   for (const sp of sparkles) {
     ctx.globalAlpha = Math.max(0, sp.life / 30);
-    ctx.fillStyle = "#ffd36e";
-    ctx.beginPath();
-    ctx.arc(sp.x, sp.y, 3, 0, Math.PI * 2);
-    ctx.fill();
+    ctx.font = "16px system-ui";
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+    ctx.fillText("🐟", sp.x, sp.y);
     ctx.globalAlpha = 1;
   }
 }
@@ -610,10 +561,9 @@ function drawUI() {
   ctx.textAlign = "center";
   ctx.textBaseline = "middle";
 
-  // score big
-  ctx.font = "800 48px system-ui";
+  ctx.font = "800 44px system-ui";
   ctx.fillStyle = "rgba(231,238,252,0.92)";
-  ctx.fillText(String(score), WORLD_W / 2, 84);
+  ctx.fillText(`🐟 ${score}`, WORLD_W / 2, 84);
 
   if (!started && !gameOver) {
     ctx.font = "800 34px system-ui";
@@ -621,42 +571,36 @@ function drawUI() {
     ctx.font = "600 16px system-ui";
     ctx.globalAlpha = 0.85;
     ctx.fillText("Tap to flap", WORLD_W / 2, WORLD_H / 2 + 4);
-    ctx.fillText("Pass scratch posts to earn treats 🐟", WORLD_W / 2, WORLD_H / 2 + 28);
+    ctx.fillText("Pass yarn balls to collect treats 🐟", WORLD_W / 2, WORLD_H / 2 + 28);
     ctx.globalAlpha = 1;
   }
 }
 
-// ---------- Game loop ----------
+// ---------- Loop ----------
 function update() {
   t++;
 
   if (started && !gameOver) {
-    // physics
     cat.vy += GRAVITY;
     cat.y += cat.vy;
-
-    // rotation
     cat.rot = Math.max(-0.55, Math.min(1.0, cat.vy / 12));
 
-    // move pipes
     for (const p of pipes) p.x -= PIPE_SPEED;
 
-    // recycle pipes
     if (pipes.length && pipes[0].x + PIPE_W < -20) {
       pipes.shift();
       const lastX = pipes[pipes.length - 1].x;
       addPipe(lastX + PIPE_SPACING);
     }
 
-    // scoring
+    // scoring (treats)
     for (const p of pipes) {
       if (!p.passed && p.x + PIPE_W < cat.x - cat.r) {
         p.passed = true;
         score += 1;
-        statusEl.textContent = `Playing • Score: ${score} • Best: ${best}`;
+        statusEl.textContent = `Playing • Treats: ${score} • Best: ${best}`;
         beep(740, 0.05, "triangle", 0.03);
 
-        // sparkle burst
         for (let i = 0; i < 10; i++) {
           sparkles.push({
             x: cat.x + 10,
@@ -669,14 +613,9 @@ function update() {
       }
     }
 
-    // boundaries
-    if (cat.y - cat.r < 0) {
-      cat.y = cat.r;
-      cat.vy = 0;
-    }
+    if (cat.y - cat.r < 0) { cat.y = cat.r; cat.vy = 0; }
     if (cat.y + cat.r > WORLD_H - GROUND_H) setGameOver();
 
-    // collisions
     for (const p of pipes) {
       const topH = p.gapCenter - PIPE_GAP / 2;
       const botY = p.gapCenter + PIPE_GAP / 2;
@@ -687,7 +626,7 @@ function update() {
     }
   }
 
-  // update sparkles
+  // sparkles
   sparkles = sparkles.filter(sp => sp.life > 0);
   for (const sp of sparkles) {
     sp.x += sp.vx;
@@ -710,4 +649,5 @@ function update() {
 // ---------- Start ----------
 reset();
 update();
+setNet("Connecting to cat HQ…");
 initFirebase();
