@@ -233,7 +233,7 @@ const CAT_PALETTES = [
   { body: "#b07a4a", ear: "#9a6a40", stripe: "rgba(40,20,10,0.25)" },   // brown
 ];
 let catStyle = CAT_PALETTES[Math.floor(Math.random() * CAT_PALETTES.length)];
-let catStripeMode = 0; // 0 none, 1 classic, 2 tabby, 3 belly
+let catStripeMode = 0; // 0 none, 1 heavy bands, 2 tabby, 3 mixed
 
 // ---------- State ----------
 let started = false;
@@ -286,8 +286,7 @@ function reset() {
 mouseColor = MOUSE_COLORS[Math.floor(rand() * MOUSE_COLORS.length)];
   catStyle = CAT_PALETTES[Math.floor(Math.random() * CAT_PALETTES.length)];
 // ~55% of runs have stripes, with 3 patterns
-catStripeMode = (rand() < 0.55) ? (1 + Math.floor(rand() * 3)) : 0;
-
+catStripeMode = (rand() < 0.75) ? (1 + Math.floor(rand() * 3)) : 0; // stripes more often
   cat.y = WORLD_H * 0.45;
   cat.vy = 0;
   cat.rot = 0;
@@ -433,51 +432,62 @@ function shade(hex, amt) { // amt: -1..+1
 function drawYarnBall(cx, cy, r, base = "#ff7aa8") {
   ctx.save();
 
-  // Softer, less “plastic” shading (lower contrast)
-  const g = ctx.createRadialGradient(
-    cx - r * 0.25, cy - r * 0.25, r * 0.15,
-    cx, cy, r
-  );
-  g.addColorStop(0, shade(base, +0.10));
-  g.addColorStop(1, shade(base, -0.12));
+  // flatter base (very subtle shading)
+  const g = ctx.createRadialGradient(cx - r*0.15, cy - r*0.15, r*0.2, cx, cy, r);
+  g.addColorStop(0, shade(base, +0.06));
+  g.addColorStop(1, shade(base, -0.10));
 
   ctx.fillStyle = g;
   ctx.beginPath();
   ctx.arc(cx, cy, r, 0, Math.PI * 2);
   ctx.fill();
 
-  // Yarn strands: lots of thin curved strokes in slightly varied tones
+  // lots of thin yarn wraps (two tones)
   ctx.lineCap = "round";
-  const strandCount = 16;
-  for (let i = 0; i < strandCount; i++) {
-    const t = i / strandCount;
-    const a0 = t * Math.PI * 2;
-    const wob = Math.sin((i * 9.3) + r * 0.12) * 0.25;
+  const dark = shade(base, -0.18);
+  const light = shade(base, +0.10);
 
-    const rr = r * (0.35 + 0.55 * t);
-    ctx.strokeStyle = `rgba(255,255,255,${0.06 + 0.04 * Math.sin(i * 2.1)})`;
-    ctx.lineWidth = Math.max(1.0, r * 0.045);
+  // “wrap bands” (curved, slightly irregular)
+  const bands = 24;
+  for (let i = 0; i < bands; i++) {
+    const t = i / bands;
+    const rr = r * (0.30 + t * 0.68);
 
+    const a = t * Math.PI * 1.6;
+    const span = Math.PI * (0.75 + 0.20 * Math.sin(i * 1.7));
+
+    // dark strand
+    ctx.strokeStyle = dark;
+    ctx.globalAlpha = 0.22;
+    ctx.lineWidth = Math.max(1.1, r * 0.055);
     ctx.beginPath();
-    ctx.arc(cx, cy, rr, a0 + wob, a0 + wob + Math.PI * (0.55 + 0.25 * Math.sin(i)));
+    ctx.arc(cx, cy, rr, a, a + span);
+    ctx.stroke();
+
+    // light highlight strand slightly offset
+    ctx.strokeStyle = light;
+    ctx.globalAlpha = 0.14;
+    ctx.lineWidth = Math.max(1.0, r * 0.045);
+    ctx.beginPath();
+    ctx.arc(cx + 0.6, cy - 0.6, rr, a + 0.10, a + span + 0.10);
     ctx.stroke();
   }
 
-  // Subtle “fiber fuzz” (tiny strokes) — keeps it yarny without glitter
-  ctx.globalAlpha = 0.10;
+  // fuzzy fibers (tiny random dashes around edges)
+  ctx.globalAlpha = 0.12;
   ctx.strokeStyle = "rgba(255,255,255,0.9)";
   ctx.lineWidth = 1;
-  for (let i = 0; i < 18; i++) {
-    const a = (i / 18) * Math.PI * 2;
-    const rx = cx + Math.cos(a) * (r * (0.55 + 0.35 * ((i % 3) / 3)));
-    const ry = cy + Math.sin(a) * (r * (0.55 + 0.35 * ((i % 4) / 4)));
+  for (let i = 0; i < 26; i++) {
+    const ang = (i / 26) * Math.PI * 2;
+    const px = cx + Math.cos(ang) * (r * 0.92);
+    const py = cy + Math.sin(ang) * (r * 0.92);
     ctx.beginPath();
-    ctx.moveTo(rx, ry);
-    ctx.lineTo(rx + (Math.cos(a) * 2.2), ry + (Math.sin(a) * 2.2));
+    ctx.moveTo(px, py);
+    ctx.lineTo(px + Math.cos(ang) * 2.6, py + Math.sin(ang) * 2.6);
     ctx.stroke();
   }
-  ctx.globalAlpha = 1;
 
+  ctx.globalAlpha = 1;
   ctx.restore();
 }
 
@@ -870,38 +880,56 @@ function drawCat() {
   ctx.beginPath(); ctx.moveTo(-10, -10); ctx.lineTo(-18, -22); ctx.lineTo(-2, -18); ctx.closePath(); ctx.fill();
   ctx.beginPath(); ctx.moveTo(10, -10);  ctx.lineTo(18, -22);  ctx.lineTo(2, -18);  ctx.closePath(); ctx.fill();
 
-  // stripes (sometimes)
+// stripes (bigger / more visible sometimes)
 if (catStripeMode !== 0) {
   ctx.strokeStyle = catStyle.stripe;
-  ctx.lineWidth = 3;
+  ctx.lineWidth = 4.5;        // bigger
   ctx.lineCap = "round";
+  ctx.globalAlpha = 0.9;
 
   ctx.beginPath();
 
   if (catStripeMode === 1) {
-    // classic 2–3 horizontal stripes
-    ctx.moveTo(-7, -4); ctx.lineTo(7, -4);
-    ctx.moveTo(-8,  2); ctx.lineTo(8,  2);
-    if (rand() < 0.5) { ctx.moveTo(-6, 7); ctx.lineTo(6, 7); }
+    // heavy horizontal bands
+    ctx.moveTo(-12, -6); ctx.lineTo(12, -6);
+    ctx.moveTo(-13,  1); ctx.lineTo(13,  1);
+    ctx.moveTo(-11,  8); ctx.lineTo(11,  8);
   } else if (catStripeMode === 2) {
-    // tabby-ish diagonal stripes
-    ctx.moveTo(-10, -2); ctx.lineTo(-2, -6);
-    ctx.moveTo(-10,  4); ctx.lineTo(-1,  0);
-    ctx.moveTo( 10, -2); ctx.lineTo( 2, -6);
-    ctx.moveTo( 10,  4); ctx.lineTo( 1,  0);
-  } else if (catStripeMode === 3) {
-    // belly bands
-    ctx.moveTo(-9, 5); ctx.lineTo(9, 5);
-    ctx.moveTo(-8, 9); ctx.lineTo(8, 9);
+    // chunky tabby diagonals
+    for (let i = -10; i <= 10; i += 6) {
+      ctx.moveTo(-14, i); ctx.lineTo(-2, i - 5);
+      ctx.moveTo( 14, i); ctx.lineTo( 2, i - 5);
+    }
+  } else {
+    // mixed: 2 bands + side slashes
+    ctx.moveTo(-12, -5); ctx.lineTo(12, -5);
+    ctx.moveTo(-12,  4); ctx.lineTo(12,  4);
+    ctx.moveTo(-14,  2); ctx.lineTo(-4, -1);
+    ctx.moveTo( 14,  2); ctx.lineTo( 4, -1);
+    ctx.moveTo(-14,  9); ctx.lineTo(-5,  6);
+    ctx.moveTo( 14,  9); ctx.lineTo( 5,  6);
   }
 
   ctx.stroke();
+  ctx.globalAlpha = 1;
 }
 
   // eyes
   ctx.fillStyle = "#0b1020";
   ctx.beginPath(); ctx.arc(-6, -2, 2.2, 0, Math.PI * 2); ctx.fill();
   ctx.beginPath(); ctx.arc( 6, -2, 2.2, 0, Math.PI * 2); ctx.fill();
+
+// mouth (always)
+ctx.strokeStyle = "rgba(11,16,32,0.55)";
+ctx.lineWidth = 1.6;
+ctx.lineCap = "round";
+ctx.beginPath();
+// little "w" mouth
+ctx.moveTo(-2, 2);
+ctx.quadraticCurveTo(0, 4, 2, 2);
+ctx.moveTo(0, 2);
+ctx.lineTo(0, 3.5);
+ctx.stroke();
 
   // whiskers
   ctx.strokeStyle = "rgba(11,16,32,0.55)";
