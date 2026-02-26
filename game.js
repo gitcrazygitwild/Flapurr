@@ -214,6 +214,16 @@ const GROUND_H = 86;
 let rngSeed = Math.floor(Math.random() * 1e9);
 const rand = () => ((rngSeed = (rngSeed * 1664525 + 1013904223) >>> 0) / 4294967296);
 
+function makeRng(seed) {
+  let s = seed >>> 0;
+  return function () {
+    // LCG
+    s = (s * 1664525 + 1013904223) >>> 0;
+    return s / 4294967296;
+  };
+}
+
+
 // ---------- Cat palettes (random each reset) ----------
 const CAT_PALETTES = [
   { body: "#ffd6a6", ear: "#ffbf80", stripe: "rgba(120,60,20,0.35)" },  // ginger
@@ -286,6 +296,7 @@ pipes.push({
   x,
   gapCenter,
   passed: false,
+  seed: (rngSeed ^ ((x * 1000) | 0) ^ ((gapCenter * 10) | 0)) >>> 0,
 
   // random ball styling per pipe
   topDx: (rand() - 0.5) * (PIPE_W * 0.35),
@@ -297,7 +308,7 @@ pipes.push({
 });
 }
 
-function drawFray(rx, y, rw, dir /* -1 up, +1 down */) {
+function drawFray(rx, y, rw, dir, r01) {
   // little fibers poking out of the rope edge
   ctx.save();
   ctx.globalAlpha = 0.22;
@@ -306,17 +317,17 @@ function drawFray(rx, y, rw, dir /* -1 up, +1 down */) {
   ctx.lineCap = "round";
 
   for (let i = 0; i < 18; i++) {
-    const x = rx + 6 + rand() * (rw - 12);
-    const len = 3 + rand() * 8;
+    const x = rx + 6 + r01() * (rw - 12);
+    const len = 3 + r01() * 8;
     ctx.beginPath();
     ctx.moveTo(x, y);
-    ctx.lineTo(x + (rand() - 0.5) * 6, y + dir * len);
+    ctx.lineTo(x + (r01() - 0.5) * 6, y + dir * len);
     ctx.stroke();
   }
   ctx.restore();
 }
 
-function drawKnot(cx, cy, r, baseHex) {
+function drawKnot(cx, cy, r, baseHex, r01) {
   // knot = small fuzzy oval + a couple cross strands
   ctx.save();
   const g = ctx.createRadialGradient(cx - r*0.3, cy - r*0.3, r*0.2, cx, cy, r);
@@ -324,7 +335,7 @@ function drawKnot(cx, cy, r, baseHex) {
   g.addColorStop(1, shade(baseHex, -0.25));
   ctx.fillStyle = g;
   ctx.beginPath();
-  ctx.ellipse(cx, cy, r*1.25, r*0.9, (rand()-0.5)*0.4, 0, Math.PI*2);
+  ctx.ellipse(cx, cy, r*1.25, r*0.9, (r01()-0.5)*0.4, 0, Math.PI*2);
   ctx.fill();
 
   ctx.globalAlpha = 0.25;
@@ -424,7 +435,8 @@ function shade(hex, amt) { // amt: -1..+1
   ctx.fill();
 }
 
-function drawRopePost(x, y, w, h, flipCaps = false) {
+function drawRopePost(x, y, w, h, flipCaps = false, seed = 1) {
+  const r01 = makeRng(seed);
   const inset = 6;
   const rx = x + inset;
   const ry = y;
@@ -475,13 +487,13 @@ function drawRopePost(x, y, w, h, flipCaps = false) {
   ctx.lineCap = "round";
 
   // occasional knots (per post)
-  const knotCount = ropeH > 120 ? 1 + (rand() < 0.25 ? 1 : 0) : (rand() < 0.20 ? 1 : 0);
+  const knotCount = ropeH > 120 ? 1 + (r01() < 0.25 ? 1 : 0) : (r01() < 0.20 ? 1 : 0);
   const knots = [];
   for (let i = 0; i < knotCount; i++) {
     knots.push({
-      x: rx + rw * (0.30 + rand() * 0.40),
-      y: ropeTop + ropeH * (0.15 + rand() * 0.70),
-      r: 5 + rand() * 4
+      x: rx + rw * (0.30 + r01() * 0.40),
+      y: ropeTop + ropeH * (0.15 + r01() * 0.70),
+      r: 5 + r01() * 4
     });
   }
 
