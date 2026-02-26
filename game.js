@@ -297,17 +297,6 @@ pipes.push({
 });
 }
 
-function shade(hex, amt) {
-  const h = hex.replace("#", "");
-  const n = parseInt(h.length === 3 ? h.split("").map(c=>c+c).join("") : h, 16);
-  let r = (n >> 16) & 255, g = (n >> 8) & 255, b = n & 255;
-  r = Math.max(0, Math.min(255, Math.round(r + amt * 255)));
-  g = Math.max(0, Math.min(255, Math.round(g + amt * 255)));
-  b = Math.max(0, Math.min(255, Math.round(b + amt * 255)));
-  const to = (v) => v.toString(16).padStart(2, "0");
-  return `#${to(r)}${to(g)}${to(b)}`;
-}
-
 function drawFray(rx, y, rw, dir /* -1 up, +1 down */) {
   // little fibers poking out of the rope edge
   ctx.save();
