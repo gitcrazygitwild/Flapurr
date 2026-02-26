@@ -637,11 +637,21 @@ function update() {
 
   // draw
   drawBG();
-  drawPipes();
-  drawGround();
-  drawSparkles();
-  drawCat();
-  drawUI();
+
+ctx.globalAlpha = 1;
+drawPipes();
+
+ctx.globalAlpha = 1;
+drawGround();
+
+ctx.globalAlpha = 1;
+drawSparkles();
+
+ctx.globalAlpha = 1;
+drawCat();
+
+ctx.globalAlpha = 1;
+drawUI();
 
   requestAnimationFrame(update);
 }
