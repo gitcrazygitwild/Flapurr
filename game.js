@@ -748,6 +748,67 @@ function drawPaw(x, y, s) {
   ctx.restore();
 }
 
+function drawMouse() {
+  ctx.save();
+  ctx.translate(mouse.x, mouse.y);
+
+  // tiny tilt based on vertical speed
+  const tilt = Math.max(-0.35, Math.min(0.35, mouse.vy * 0.06));
+  ctx.rotate(tilt);
+
+  // body
+  ctx.globalAlpha = 1;
+  ctx.fillStyle = "#c9c2b6";
+  ctx.beginPath();
+  ctx.ellipse(0, 0, 10, 7, 0, 0, Math.PI * 2);
+  ctx.fill();
+
+  // head
+  ctx.fillStyle = "#d6cec1";
+  ctx.beginPath();
+  ctx.ellipse(8, -2, 6.5, 5.5, 0, 0, Math.PI * 2);
+  ctx.fill();
+
+  // ears
+  ctx.fillStyle = "#d6cec1";
+  ctx.beginPath(); ctx.ellipse(5.5, -7, 2.5, 3, -0.2, 0, Math.PI * 2); ctx.fill();
+  ctx.beginPath(); ctx.ellipse(10.5, -7, 2.5, 3,  0.2, 0, Math.PI * 2); ctx.fill();
+  ctx.fillStyle = "rgba(255,170,190,0.85)";
+  ctx.beginPath(); ctx.ellipse(5.5, -7, 1.2, 1.4, 0, 0, Math.PI * 2); ctx.fill();
+  ctx.beginPath(); ctx.ellipse(10.5, -7, 1.2, 1.4, 0, 0, Math.PI * 2); ctx.fill();
+
+  // eye
+  ctx.fillStyle = "#0b1020";
+  ctx.beginPath();
+  ctx.arc(10, -2, 1.2, 0, Math.PI * 2);
+  ctx.fill();
+
+  // nose
+  ctx.fillStyle = "rgba(255,120,160,0.95)";
+  ctx.beginPath();
+  ctx.arc(14, -1, 1.2, 0, Math.PI * 2);
+  ctx.fill();
+
+  // whisker
+  ctx.strokeStyle = "rgba(30,30,30,0.35)";
+  ctx.lineWidth = 1;
+  ctx.beginPath();
+  ctx.moveTo(13, 0);
+  ctx.lineTo(18, -2);
+  ctx.stroke();
+
+  // tail
+  ctx.strokeStyle = "#c9c2b6";
+  ctx.lineWidth = 3;
+  ctx.lineCap = "round";
+  ctx.beginPath();
+  ctx.moveTo(-8, 2);
+  ctx.quadraticCurveTo(-16, -2, -14, -10);
+  ctx.stroke();
+
+  ctx.restore();
+}
+
 function drawCat() {
   ctx.globalAlpha = 1;
   ctx.save();
@@ -845,6 +906,23 @@ function update() {
     cat.y += cat.vy;
     cat.rot = Math.max(-0.55, Math.min(1.0, cat.vy / 12));
 
+// --- mouse chase motion (springy but never catchable) ---
+const targetX = cat.x + cat.r * MOUSE_LEAD;
+const targetY = cat.y + MOUSE_YOFF + Math.sin(t * 0.12) * 2;
+
+// simple spring + damping
+mouse.vx += (targetX - mouse.x) * 0.18;
+mouse.vy += (targetY - mouse.y) * 0.18;
+mouse.vx *= 0.72;
+mouse.vy *= 0.72;
+mouse.x += mouse.vx;
+mouse.y += mouse.vy;
+
+// clamp so mouse stays within front half of the cat hitbox (doesn't affect collisions)
+const minX = cat.x + cat.r * 0.35;
+const maxX = cat.x + cat.r * 0.90;
+mouse.x = Math.max(minX, Math.min(maxX, mouse.x));
+
     for (const p of pipes) p.x -= PIPE_SPEED;
 
     if (pipes.length && pipes[0].x + PIPE_W < -20) {
@@ -917,6 +995,7 @@ drawSparkles();
 
 ctx.globalAlpha = 1;
 drawCat();
+drawMouse(); // draw after cat so it’s “in front” (cat chasing)
 
 ctx.globalAlpha = 1;
 drawUI();
