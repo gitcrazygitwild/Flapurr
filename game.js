@@ -379,47 +379,94 @@ function shade(hex, amt) { // amt: -1..+1
 }
 
 function drawRopePost(x, y, w, h) {
-  // base cardboard/wood
-  ctx.fillStyle = "#d9c7a5";
-  roundRect(x, y, w, h, 12);
+  // --- base core (slight inset) ---
+  const inset = 6;
+  const rx = x + inset;
+  const ry = y;
+  const rw = w - inset * 2;
+  const rh = h;
+
+  // soft core behind rope
+  ctx.fillStyle = "#cdb892";
+  roundRect(rx, ry, rw, rh, 10);
   ctx.fill();
 
-  // rope wrap: diagonal bands
+  // --- rope texture (spiral wraps) ---
   ctx.save();
   ctx.beginPath();
-  roundRect(x, y, w, h, 12);
+  roundRect(rx, ry, rw, rh, 10);
   ctx.clip();
 
-  const step = 14;                 // rope spacing
-  ctx.lineWidth = 6;
+  // darker edge shading to feel cylindrical
+  const edge = ctx.createLinearGradient(rx, 0, rx + rw, 0);
+  edge.addColorStop(0.0, "rgba(0,0,0,0.18)");
+  edge.addColorStop(0.18, "rgba(0,0,0,0.06)");
+  edge.addColorStop(0.50, "rgba(255,255,255,0.04)");
+  edge.addColorStop(0.82, "rgba(0,0,0,0.06)");
+  edge.addColorStop(1.0, "rgba(0,0,0,0.18)");
+  ctx.fillStyle = edge;
+  ctx.fillRect(rx, ry, rw, rh);
+
+  // rope spiral lines (more horizontal than before)
+  const step = 12;                 // distance between wraps
+  const slope = 0.35;              // 0 = horizontal, 1 = 45deg. Lower = less vertical
+  const ropeYJitter = 1.4;
+
+  // two-tone rope
+  const ropeDark = "rgba(125, 92, 48, 0.70)";
+  const ropeLight = "rgba(255, 255, 255, 0.22)";
+
   ctx.lineCap = "round";
 
-  for (let i = -h; i < w + h; i += step) {
-    // darker rope strand
-    ctx.strokeStyle = "rgba(140, 105, 55, 0.55)";
+  // draw wraps across the post height
+  for (let yy = ry - 40; yy < ry + rh + 40; yy += step) {
+    const j = (Math.sin((yy + t * 0.7) * 0.06) * ropeYJitter);
+
+    // dark strand (thicker)
+    ctx.strokeStyle = ropeDark;
+    ctx.lineWidth = 7;
     ctx.beginPath();
-    ctx.moveTo(x + i, y);
-    ctx.lineTo(x + i + h, y + h);
+    ctx.moveTo(rx - 30, yy + j);
+    ctx.lineTo(rx + rw + 30, yy + j + rw * slope);
     ctx.stroke();
 
-    // highlight strand on top
-    ctx.strokeStyle = "rgba(255, 255, 255, 0.20)";
-    ctx.lineWidth = 2;
+    // highlight strand (thin offset)
+    ctx.strokeStyle = ropeLight;
+    ctx.lineWidth = 2.2;
     ctx.beginPath();
-    ctx.moveTo(x + i + 2, y);
-    ctx.lineTo(x + i + h + 2, y + h);
+    ctx.moveTo(rx - 30, yy + j - 1);
+    ctx.lineTo(rx + rw + 30, yy + j + rw * slope - 1);
     ctx.stroke();
-
-    ctx.lineWidth = 6;
   }
 
-  // subtle edge shading
-  ctx.fillStyle = "rgba(0,0,0,0.08)";
-  ctx.fillRect(x, y, 6, h);
-  ctx.fillRect(x + w - 6, y, 6, h);
-
   ctx.restore();
+
+  // --- top cap ---
+  const capH = Math.min(16, Math.max(10, h * 0.18));
+  const capR = 10;
+
+  // top plate
+  ctx.fillStyle = "#9aa3b5"; // cool grey plastic
+  roundRect(x + 2, y - 2, w - 4, capH, capR);
+  ctx.fill();
+
+  // top highlight
+  ctx.fillStyle = "rgba(255,255,255,0.22)";
+  roundRect(x + 6, y + 1, w - 12, capH * 0.42, capR);
+  ctx.fill();
+
+  // --- bottom base (bigger) ---
+  const baseH = Math.min(22, Math.max(14, h * 0.22));
+  ctx.fillStyle = "#7f889b"; // darker base
+  roundRect(x - 2, y + h - baseH + 2, w + 4, baseH, 12);
+  ctx.fill();
+
+  // base shadow
+  ctx.fillStyle = "rgba(0,0,0,0.20)";
+  roundRect(x - 2, y + h - 8, w + 4, 10, 10);
+  ctx.fill();
 }
+
 
 function drawString(fromX, fromY, toX, toY) {
   ctx.strokeStyle = "rgba(255,255,255,0.25)";
