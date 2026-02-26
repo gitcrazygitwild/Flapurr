@@ -324,11 +324,26 @@ function roundRect(x, y, w, h, r) {
   ctx.closePath();
 }
 
+function hexToRgb(hex) {
+  const h = hex.replace("#", "");
+  const n = parseInt(h.length === 3 ? h.split("").map(c=>c+c).join("") : h, 16);
+  return { r: (n >> 16) & 255, g: (n >> 8) & 255, b: n & 255 };
+}
+function rgbToHex(r,g,b){
+  const to = (v)=>v.toString(16).padStart(2,"0");
+  return `#${to(r)}${to(g)}${to(b)}`;
+}
+function shade(hex, amt) { // amt: -1..+1
+  const {r,g,b} = hexToRgb(hex);
+  const f = (v)=>Math.max(0, Math.min(255, Math.round(v + (amt*255))));
+  return rgbToHex(f(r), f(g), f(b));
+}
+
 // Yarn helpers
-function drawYarnBall(cx, cy, r) {
+  function drawYarnBall(cx, cy, r, base = "#ff7aa8") {
   const g = ctx.createRadialGradient(cx - r * 0.35, cy - r * 0.35, r * 0.2, cx, cy, r);
-  g.addColorStop(0, "#ff7aa8");
-  g.addColorStop(1, "#c53a6c");
+  g.addColorStop(0, shade(base, +0.25));
+  g.addColorStop(1, shade(base, -0.20));
   ctx.fillStyle = g;
   ctx.beginPath();
   ctx.arc(cx, cy, r, 0, Math.PI * 2);
@@ -347,6 +362,49 @@ function drawYarnBall(cx, cy, r) {
   ctx.beginPath();
   ctx.arc(cx - r * 0.35, cy - r * 0.35, r * 0.25, 0, Math.PI * 2);
   ctx.fill();
+}
+
+function drawRopePost(x, y, w, h) {
+  // base cardboard/wood
+  ctx.fillStyle = "#d9c7a5";
+  roundRect(x, y, w, h, 12);
+  ctx.fill();
+
+  // rope wrap: diagonal bands
+  ctx.save();
+  ctx.beginPath();
+  roundRect(x, y, w, h, 12);
+  ctx.clip();
+
+  const step = 14;                 // rope spacing
+  ctx.lineWidth = 6;
+  ctx.lineCap = "round";
+
+  for (let i = -h; i < w + h; i += step) {
+    // darker rope strand
+    ctx.strokeStyle = "rgba(140, 105, 55, 0.55)";
+    ctx.beginPath();
+    ctx.moveTo(x + i, y);
+    ctx.lineTo(x + i + h, y + h);
+    ctx.stroke();
+
+    // highlight strand on top
+    ctx.strokeStyle = "rgba(255, 255, 255, 0.20)";
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.moveTo(x + i + 2, y);
+    ctx.lineTo(x + i + h + 2, y + h);
+    ctx.stroke();
+
+    ctx.lineWidth = 6;
+  }
+
+  // subtle edge shading
+  ctx.fillStyle = "rgba(0,0,0,0.08)";
+  ctx.fillRect(x, y, 6, h);
+  ctx.fillRect(x + w - 6, y, 6, h);
+
+  ctx.restore();
 }
 
 function drawString(fromX, fromY, toX, toY) {
@@ -464,10 +522,9 @@ function drawPipes() {
     const botH = (WORLD_H - GROUND_H) - botY;
 
     // posts (tan)
-    ctx.fillStyle = "#c9a46a";
-    roundRect(p.x, 0, PIPE_W, topH, 12); ctx.fill();
-    roundRect(p.x, botY, PIPE_W, botH, 12); ctx.fill();
-
+    drawRopePost(p.x, 0, PIPE_W, topH);
+    drawRopePost(p.x, botY, PIPE_W, botH);
+    
     // yarn balls at the gap edges (SAFE positioning)
     const r = Math.min(PIPE_W * 0.48, 26);
 
