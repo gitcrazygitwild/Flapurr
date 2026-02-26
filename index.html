@@ -112,24 +112,33 @@
         box.style.cssText =
           "position:fixed;left:8px;right:8px;top:8px;z-index:999999;" +
           "background:rgba(0,0,0,.86);color:#fff;padding:10px 12px;border-radius:12px;" +
-          "font:12px/1.35 system-ui;white-space:pre-wrap;max-height:42vh;overflow:auto;";
+          "font:12px/1.35 system-ui;white-space:pre-wrap;max-height:50vh;overflow:auto;";
         document.body.appendChild(box);
       }
       box.textContent = msg;
     }
 
+    // Global JS errors
     window.addEventListener("error", function (e) {
       show("JS ERROR:\n" + (e.message || e) + "\n" + (e.filename || "") + ":" + (e.lineno || ""));
     });
 
+    // Promise errors
     window.addEventListener("unhandledrejection", function (e) {
       show("PROMISE ERROR:\n" + (e.reason && e.reason.message ? e.reason.message : String(e.reason)));
     });
 
-    // shows even if nothing breaks, so we know this ran
+    // Resource load errors (THIS is the missing piece, capture = true)
+    window.addEventListener("error", function (e) {
+      var t = e.target;
+      if (t && (t.tagName === "SCRIPT" || t.tagName === "LINK")) {
+        show("RESOURCE ERROR:\n" + t.tagName + " failed to load\n" + (t.src || t.href || "(no url)"));
+      }
+    }, true);
+
     setTimeout(function () {
-      show("Debugger loaded ✅\nIf the game is blank, the error will appear here.");
-    }, 400);
+      show("Debugger loaded ✅\nWaiting for module script…");
+    }, 300);
   })();
 </script>
 
