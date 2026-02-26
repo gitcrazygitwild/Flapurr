@@ -463,21 +463,21 @@ function drawPipes() {
     const botY = p.gapCenter + PIPE_GAP / 2;
     const botH = (WORLD_H - GROUND_H) - botY;
 
-    // subtle columns for readability
-    ctx.fillStyle = "#c9a46a";   // tan
+    // posts (tan)
+    ctx.fillStyle = "#c9a46a";
     roundRect(p.x, 0, PIPE_W, topH, 12); ctx.fill();
     roundRect(p.x, botY, PIPE_W, botH, 12); ctx.fill();
 
-    // yarn balls at the gap edges
+    // yarn balls at the gap edges (SAFE positioning)
     const r = Math.min(PIPE_W * 0.48, 26);
 
-    const topBallY = topH - r;
-    const botBallY = botY + r;
+    const topBallX = p.x + PIPE_W / 2;
+    const topBallY = Math.max(r + 10, topH - r - 6);
 
     const botBallX = p.x + PIPE_W / 2;
     const botBallY = Math.min(WORLD_H - GROUND_H - r - 10, botY + r + 6);
 
-    // start strings at the post edges (not past them)
+    // strings start exactly at the post ends
     drawString(topBallX, topH, topBallX - 18, topH + 26);
     drawString(botBallX, botY, botBallX + 18, botY - 26);
 
