@@ -1,11 +1,16 @@
 :root { color-scheme: light dark; }
 
 html, body {
-  touch-action: manipulation;
-  -webkit-text-size-adjust: 100%;
+  height: 100%;
+  overscroll-behavior: none;
+  touch-action: none;              /* stronger than manipulation */
   -webkit-user-select: none;
   user-select: none;
   -webkit-touch-callout: none;
+}
+
+canvas, .stage {
+  touch-action: none;
 }
 
 body {
