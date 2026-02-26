@@ -147,21 +147,7 @@
    <script type="module">
   document.getElementById("netStatus").textContent = "INLINE MODULE RAN ✅";
 </script>
-<script type="module">
-  const status = (m) => (document.getElementById("netStatus").textContent = m);
-
-  status("Loader module running…");
-
-  try {
-    await import("./game.js?v=124");
-    status("Imported game.js ✅");
-  } catch (e) {
-    console.error("IMPORT ERROR OBJECT:", e);
-    const msg =
-      (e && (e.stack || e.message)) ? (e.stack || e.message) : String(e);
-    status("IMPORT FAILED ❌:\n" + msg);
-  }
-</script>
+<script type="module" src="game.js"></script>
 
 </body>
 </html>
