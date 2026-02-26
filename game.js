@@ -787,31 +787,35 @@ function drawPaw(x, y, s) {
 
 function drawMouse() {
   ctx.save();
-  // Draw the mouse ahead of the anchor so there’s daylight between them
+
   const ahead = MOUSE_GAP + Math.max(0, cat.vy) * 0.4 + (cat.rot * MOUSE_DRAW_AHEAD);
   ctx.translate(mouse.x + ahead, mouse.y);
 
-  // tiny tilt based on vertical speed
   const tilt = Math.max(-0.35, Math.min(0.35, mouse.vy * 0.06));
   ctx.rotate(tilt);
 
-  // body
   ctx.globalAlpha = 1;
-  ctx.strokeStyle = mouseColor;
+
+  const bodyCol = mouseColor || "#c9c2b6";
+  const headCol = shade(bodyCol, +0.08);
+
+  // body
+  ctx.fillStyle = bodyCol;
   ctx.beginPath();
   ctx.ellipse(0, 0, 10, 7, 0, 0, Math.PI * 2);
   ctx.fill();
 
   // head
-  ctx.fillStyle = shade(mouseColor, +0.08);;
+  ctx.fillStyle = headCol;
   ctx.beginPath();
   ctx.ellipse(8, -2, 6.5, 5.5, 0, 0, Math.PI * 2);
   ctx.fill();
 
   // ears
-  ctx.fillStyle = "#d6cec1";
+  ctx.fillStyle = headCol;
   ctx.beginPath(); ctx.ellipse(5.5, -7, 2.5, 3, -0.2, 0, Math.PI * 2); ctx.fill();
   ctx.beginPath(); ctx.ellipse(10.5, -7, 2.5, 3,  0.2, 0, Math.PI * 2); ctx.fill();
+
   ctx.fillStyle = "rgba(255,170,190,0.85)";
   ctx.beginPath(); ctx.ellipse(5.5, -7, 1.2, 1.4, 0, 0, Math.PI * 2); ctx.fill();
   ctx.beginPath(); ctx.ellipse(10.5, -7, 1.2, 1.4, 0, 0, Math.PI * 2); ctx.fill();
@@ -837,7 +841,7 @@ function drawMouse() {
   ctx.stroke();
 
   // tail
-  ctx.strokeStyle = "#c9c2b6";
+  ctx.strokeStyle = shade(bodyCol, -0.05);
   ctx.lineWidth = 3;
   ctx.lineCap = "round";
   ctx.beginPath();
