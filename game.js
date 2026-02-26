@@ -608,7 +608,7 @@ function drawBG() {
     const x = (i * 97 + 13) % WORLD_W;
     const y = (i * 151 + 29) % (WORLD_H - 180);
     const tw = 1 + (i % 3);
-    ctx.fillStyle = "#e2c79a";
+    ctx.fillStyle = "#cfe3ff";
     ctx.fillRect(x, y, tw, tw);
   }
   ctx.globalAlpha = 1;
