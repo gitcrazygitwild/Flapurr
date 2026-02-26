@@ -404,6 +404,7 @@ function drawBG() {
 }
 
 function drawSkyCat(x, y, s, i) {
+  ctx.globalAlpha = 1;
   ctx.save();
   ctx.translate(x, y + Math.sin((t + i * 40) * 0.03) * 6);
   ctx.scale(s, s);
