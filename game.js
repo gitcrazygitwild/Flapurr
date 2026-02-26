@@ -311,9 +311,9 @@ pipes.push({
 function drawFray(rx, y, rw, dir, r01) {
   // little fibers poking out of the rope edge
   ctx.save();
-  ctx.globalAlpha = 0.22;
+  ctx.globalAlpha = 0.55;
   ctx.strokeStyle = "rgba(255,255,255,0.55)";
-  ctx.lineWidth = 1.2;
+  ctx.lineWidth = 1.8;
   ctx.lineCap = "round";
 
   for (let i = 0; i < 18; i++) {
