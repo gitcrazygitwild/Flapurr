@@ -755,7 +755,9 @@ function drawPaw(x, y, s) {
 
 function drawMouse() {
   ctx.save();
-  ctx.translate(mouse.x, mouse.y);
+  // Draw the mouse ahead of the anchor so there’s daylight between them
+  const ahead = MOUSE_GAP + Math.max(0, cat.vy) * 0.4 + (cat.rot * MOUSE_DRAW_AHEAD);
+  ctx.translate(mouse.x + ahead, mouse.y);
 
   // tiny tilt based on vertical speed
   const tilt = Math.max(-0.35, Math.min(0.35, mouse.vy * 0.06));
