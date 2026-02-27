@@ -993,38 +993,118 @@ function drawUI() {
 // ---------- Loop ----------
 function update(now = 0) {
   if (!lastTime) lastTime = now;
-  let dt = (now - lastTime) / 16.6667;   // dt = 1 at ~60fps
+  let dt = (now - lastTime) / 16.6667; // 1.0 at 60fps
   lastTime = now;
 
-  // avoid huge jumps after tab-switch / stutter
+  // prevent huge jumps (tab switch / lag)
   dt = Math.max(0, Math.min(2.5, dt));
 
   time60 += dt;
-  t = time60; // so your sin() animations still work similarly
+  t = time60; // keep your sin() animations working
 
   if (started && !gameOver) {
+    // physics (dt-based)
     cat.vy += GRAVITY * dt;
     cat.y  += cat.vy * dt;
-
     cat.rot = Math.max(-0.55, Math.min(1.0, cat.vy / 12));
 
+    // mouse chase (keep "feel" stable across fps)
+    const anchorX = cat.x + cat.r * MOUSE_ANCHOR;
+    const anchorY = cat.y + MOUSE_YOFF + Math.sin(t * 0.12) * 2;
+
+    // scale the spring a bit by dt so it behaves similarly at different fps
+    const spring = 0.18 * dt;
+    const damp   = Math.pow(0.72, dt);
+
+    mouse.vx += (anchorX - mouse.x) * spring;
+    mouse.vy += (anchorY - mouse.y) * spring;
+    mouse.vx *= damp;
+    mouse.vy *= damp;
+    mouse.x  += mouse.vx * dt;
+    mouse.y  += mouse.vy * dt;
+
+    // clamp mouse within cat front-half hitbox
+    const minX = cat.x + cat.r * 0.35;
+    const maxX = cat.x + cat.r * 0.90;
+    mouse.x = Math.max(minX, Math.min(maxX, mouse.x));
+
+    // pipes move (dt-based)
     for (const p of pipes) p.x -= PIPE_SPEED * dt;
 
-    // anything else that moves per-frame should multiply by dt:
-    // - mouse spring can stay as-is (it’s “feel”), but its sinusoid uses t already
-    // - sparkles physics SHOULD use dt
+    // recycle pipes
+    if (pipes.length && pipes[0].x + PIPE_W < -20) {
+      pipes.shift();
+      const lastX = pipes[pipes.length - 1].x;
+      addPipe(lastX + PIPE_SPACING);
+    }
+
+    // scoring
+    for (const p of pipes) {
+      if (!p.passed && p.x + PIPE_W < cat.x - cat.r) {
+        p.passed = true;
+        score += 1;
+        statusEl.textContent = `Playing • Treats: ${score} • Best: ${best}`;
+        beep(740, 0.05, "triangle", 0.03);
+
+        for (let i = 0; i < 10; i++) {
+          sparkles.push({
+            x: cat.x + 10,
+            y: cat.y,
+            vx: (rand() - 0.5) * 2.4,
+            vy: (rand() - 0.5) * 2.4,
+            life: 30
+          });
+        }
+      }
+    }
+
+    // bounds
+    if (cat.y - cat.r < 0) { cat.y = cat.r; cat.vy = 0; }
+    if (cat.y + cat.r > WORLD_H - GROUND_H) setGameOver();
+
+    // collisions
+    for (const p of pipes) {
+      const topH = p.gapCenter - PIPE_GAP / 2;
+      const botY = p.gapCenter + PIPE_GAP / 2;
+      const botH = (WORLD_H - GROUND_H) - botY;
+
+      if (circleRectCollide(cat.x, cat.y, cat.r, p.x, 0, PIPE_W, topH)) setGameOver();
+      if (circleRectCollide(cat.x, cat.y, cat.r, p.x, botY, PIPE_W, botH)) setGameOver();
+    }
   }
 
-  // sparkles: make them dt-based too
+  // sparkles (dt-based)
   sparkles = sparkles.filter(sp => sp.life > 0);
   for (const sp of sparkles) {
     sp.x += sp.vx * dt;
     sp.y += sp.vy * dt;
     sp.vy += 0.04 * dt;
-    sp.life -= dt; // life becomes float, that's fine
+    sp.life -= dt;
   }
 
-  // ... your draw block stays the same ...
+  // draw (restore your draw block!)
+  ctx.save();
+  ctx.globalAlpha = 1;
+  ctx.globalCompositeOperation = "source-over";
+  ctx.filter = "none";
+  ctx.shadowBlur = 0;
+  ctx.shadowColor = "transparent";
+  ctx.setLineDash([]);
+
+  drawBG();
+  ctx.globalAlpha = 1;
+  drawPipes();
+  ctx.globalAlpha = 1;
+  drawGround();
+  ctx.globalAlpha = 1;
+  drawSparkles();
+  ctx.globalAlpha = 1;
+  drawCat();
+  drawMouse();
+  ctx.globalAlpha = 1;
+  drawUI();
+
+  ctx.restore();
 
   requestAnimationFrame(update);
 }
