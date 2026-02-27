@@ -284,6 +284,8 @@ function reset() {
   gameOver = false;
   score = 0;
   t = 0;
+  lastTime=0;
+  time60=0;
   sparkles = [];
 mouseColor = MOUSE_COLORS[Math.floor(rand() * MOUSE_COLORS.length)];
   catStyle = CAT_PALETTES[Math.floor(Math.random() * CAT_PALETTES.length)];
