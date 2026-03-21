@@ -161,7 +161,7 @@ submitBtn.addEventListener("click", async () => {
 });
 
 skipBtn.addEventListener("click", () => closeModal());
-modal.addEventListener("pointerdown", (e) => { if (e.target === modal) closeModal(); });
+
 
 // ---------- Canvas scaling ----------
 const WORLD_W = 420;
