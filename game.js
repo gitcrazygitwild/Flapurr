@@ -278,41 +278,46 @@ function beep(freq, dur = 0.06, type = "triangle", gain = 0.04) {
   } catch (_) {}
 }
 
-function hiss(dur = 0.22, gainValue = 0.045) {
+function hiss(dur = 0.14, gainValue = 0.018) {
   try {
+    if (!soundEnabled) return;
     audioCtx = audioCtx || new (window.AudioContext || window.webkitAudioContext)();
 
     const bufferSize = Math.max(1, Math.floor(audioCtx.sampleRate * dur));
     const buffer = audioCtx.createBuffer(1, bufferSize, audioCtx.sampleRate);
     const data = buffer.getChannelData(0);
 
-    // White noise
+    // Softer white noise
     for (let i = 0; i < bufferSize; i++) {
-      data[i] = (Math.random() * 2 - 1) * 0.7;
+      data[i] = (Math.random() * 2 - 1) * 0.35;
     }
 
     const source = audioCtx.createBufferSource();
     source.buffer = buffer;
 
-    // Filter to make it more hissy / airy
-    const filter = audioCtx.createBiquadFilter();
-    filter.type = "highpass";
-    filter.frequency.value = 1800;
+    // Band-pass-ish hiss: less static, more airy “psss”
+    const highpass = audioCtx.createBiquadFilter();
+    highpass.type = "highpass";
+    highpass.frequency.value = 2200;
+
+    const lowpass = audioCtx.createBiquadFilter();
+    lowpass.type = "lowpass";
+    lowpass.frequency.value = 7000;
 
     const gain = audioCtx.createGain();
     gain.gain.setValueAtTime(0.0001, audioCtx.currentTime);
-    gain.gain.exponentialRampToValueAtTime(gainValue, audioCtx.currentTime + 0.02);
+    gain.gain.exponentialRampToValueAtTime(gainValue, audioCtx.currentTime + 0.01);
     gain.gain.exponentialRampToValueAtTime(0.0001, audioCtx.currentTime + dur);
 
-    source.connect(filter);
-    filter.connect(gain);
+    source.connect(highpass);
+    highpass.connect(lowpass);
+    lowpass.connect(gain);
     gain.connect(audioCtx.destination);
 
     source.start();
     source.stop(audioCtx.currentTime + dur);
   } catch (_) {}
 }
-
 // ---------- Helpers ----------
 function reset() {
   started = false;
