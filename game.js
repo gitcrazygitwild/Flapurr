@@ -424,7 +424,7 @@ function setGameOver() {
 
 
 
-beep(140, 0.10, "sawtooth", 0.03);
+hiss(0.12, 0.016);
 
   if (score > best) {
     best = score;
