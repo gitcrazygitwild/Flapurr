@@ -280,7 +280,7 @@ function beep(freq, dur = 0.06, type = "triangle", gain = 0.04) {
 
 function hiss(dur = 0.16, gainValue = 0.018) {
   try {
-    if (!soundEnabled) return;
+
     audioCtx = audioCtx || new (window.AudioContext || window.webkitAudioContext)();
 
     const now = audioCtx.currentTime;
