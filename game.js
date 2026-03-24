@@ -278,30 +278,42 @@ function beep(freq, dur = 0.06, type = "triangle", gain = 0.04) {
   } catch (_) {}
 }
 
-function hiss(dur = 0.20, gainValue = 0.08) {
+function hiss(dur = 0.16, gainValue = 0.018) {
   try {
     if (!soundEnabled) return;
     audioCtx = audioCtx || new (window.AudioContext || window.webkitAudioContext)();
 
-    const length = Math.floor(audioCtx.sampleRate * dur);
-    const buffer = audioCtx.createBuffer(1, length, audioCtx.sampleRate);
-    const data = buffer.getChannelData(0);
+    const now = audioCtx.currentTime;
 
-    for (let i = 0; i < length; i++) {
-      data[i] = (Math.random() * 2 - 1) * 0.9;
+    // Use 3 high-pitched detuned oscillators to fake a hissy texture
+    const freqs = [1800, 2300, 2900];
+    const types = ["sawtooth", "triangle", "square"];
+
+    for (let i = 0; i < freqs.length; i++) {
+      const o = audioCtx.createOscillator();
+      const g = audioCtx.createGain();
+      const f = audioCtx.createBiquadFilter();
+
+      o.type = types[i];
+      o.frequency.setValueAtTime(freqs[i], now);
+      o.detune.setValueAtTime((i - 1) * 18, now);
+
+      // Filter to keep it sharp / airy
+      f.type = "bandpass";
+      f.frequency.setValueAtTime(freqs[i], now);
+      f.Q.value = 1.2;
+
+      g.gain.setValueAtTime(0.0001, now);
+      g.gain.exponentialRampToValueAtTime(gainValue, now + 0.01);
+      g.gain.exponentialRampToValueAtTime(0.0001, now + dur);
+
+      o.connect(f);
+      f.connect(g);
+      g.connect(audioCtx.destination);
+
+      o.start(now);
+      o.stop(now + dur);
     }
-
-    const source = audioCtx.createBufferSource();
-    source.buffer = buffer;
-
-    const gain = audioCtx.createGain();
-    gain.gain.setValueAtTime(gainValue, audioCtx.currentTime);
-
-    source.connect(gain);
-    gain.connect(audioCtx.destination);
-
-    source.start();
-    source.stop(audioCtx.currentTime + dur);
   } catch (e) {
     console.error("hiss failed", e);
   }
@@ -419,7 +431,7 @@ function setGameOver() {
 
 
 
-hiss(0.20, 0.08);
+hiss(0.14, 0.02);
 
   if (score > best) {
     best = score;
