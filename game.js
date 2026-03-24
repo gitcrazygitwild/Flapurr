@@ -278,46 +278,36 @@ function beep(freq, dur = 0.06, type = "triangle", gain = 0.04) {
   } catch (_) {}
 }
 
-function hiss(dur = 0.14, gainValue = 0.018) {
+function hiss(dur = 0.20, gainValue = 0.08) {
   try {
     if (!soundEnabled) return;
     audioCtx = audioCtx || new (window.AudioContext || window.webkitAudioContext)();
 
-    const bufferSize = Math.max(1, Math.floor(audioCtx.sampleRate * dur));
-    const buffer = audioCtx.createBuffer(1, bufferSize, audioCtx.sampleRate);
+    const length = Math.floor(audioCtx.sampleRate * dur);
+    const buffer = audioCtx.createBuffer(1, length, audioCtx.sampleRate);
     const data = buffer.getChannelData(0);
 
-    // Softer white noise
-    for (let i = 0; i < bufferSize; i++) {
-      data[i] = (Math.random() * 2 - 1) * 0.35;
+    for (let i = 0; i < length; i++) {
+      data[i] = (Math.random() * 2 - 1) * 0.9;
     }
 
     const source = audioCtx.createBufferSource();
     source.buffer = buffer;
 
-    // Band-pass-ish hiss: less static, more airy “psss”
-    const highpass = audioCtx.createBiquadFilter();
-    highpass.type = "highpass";
-    highpass.frequency.value = 2200;
-
-    const lowpass = audioCtx.createBiquadFilter();
-    lowpass.type = "lowpass";
-    lowpass.frequency.value = 7000;
-
     const gain = audioCtx.createGain();
-    gain.gain.setValueAtTime(0.0001, audioCtx.currentTime);
-    gain.gain.exponentialRampToValueAtTime(gainValue, audioCtx.currentTime + 0.01);
-    gain.gain.exponentialRampToValueAtTime(0.0001, audioCtx.currentTime + dur);
+    gain.gain.setValueAtTime(gainValue, audioCtx.currentTime);
 
-    source.connect(highpass);
-    highpass.connect(lowpass);
-    lowpass.connect(gain);
+    source.connect(gain);
     gain.connect(audioCtx.destination);
 
     source.start();
     source.stop(audioCtx.currentTime + dur);
-  } catch (_) {}
+  } catch (e) {
+    console.error("hiss failed", e);
+  }
 }
+
+
 // ---------- Helpers ----------
 function reset() {
   started = false;
@@ -429,7 +419,7 @@ function setGameOver() {
 
 
 
-hiss(0.12, 0.016);
+hiss(0.20, 0.08);
 
   if (score > best) {
     best = score;
