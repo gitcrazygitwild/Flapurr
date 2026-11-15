@@ -2,11 +2,11 @@
 <html lang="en">
 <head>
   <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover" />
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
   <title>Flapurr! 🐾</title>
 
   <!-- Styles -->
-  <link rel="stylesheet" href="style.css" />
+  <link rel="stylesheet" href="style.css?v=2" />
 
   <!-- Prevent weird mobile zoom / scroll -->
   <style>
@@ -26,14 +26,21 @@
       </div>
     </header>
 
+    <div class="play-modes" role="group" aria-label="Game mode"><button type="button" data-mode="classic" aria-pressed="true">Classic</button><button type="button" data-mode="daily" aria-pressed="false">✦ Daily cat challenge</button></div>
+    <p id="challengeInfo" class="challenge-info"></p>
     <!-- GAME AREA -->
     <div class="stage">
-      <canvas id="c" width="420" height="640"></canvas>
+      <canvas id="c" width="420" height="640" tabindex="0" aria-label="Flapurr game. Space or tap to flap, P to pause, R to restart."></canvas>
+      <div class="play-controls"><button id="pause" type="button" aria-pressed="false" disabled>Ⅱ Pause</button><button id="sound" type="button" aria-label="Mute game sounds" aria-pressed="false">Sound on</button></div>
+      <div id="pauseOverlay" class="pause-overlay" hidden><span class="pause-paw" aria-hidden="true">🐾</span><strong>A little paws.</strong><p>Your run will wait for you.</p><button id="resume" class="btnPrimary" type="button">Keep flying →</button></div>
 
       <!-- Fullscreen button -->
-      <button id="fs" class="fs" type="button">⛶</button>
+      <button id="fs" class="fs" type="button" aria-label="Toggle full screen">⛶</button>
     </div>
 
+    <div class="after-game"><span>Space to flap · P to pause · R to restart</span><button id="restart" class="btnGhost" type="button">↻ New run</button></div>
+    <p id="dailyNote" class="daily-note" hidden>One course per day, shared by everyone. Your daily best stays on this device; the Top Cats board is for Classic. Resets at midnight Eastern.</p>
+    <p id="dailyResult" class="daily-result" role="status"></p>
     <!-- LEADERBOARD + STATS -->
     <section class="panel">
 
@@ -64,7 +71,7 @@
   </div>
 
   <!-- SCORE SUBMIT MODAL -->
-  <div class="modal" id="modal" aria-hidden="true">
+  <div class="modal" id="modal" aria-hidden="true" role="dialog" aria-modal="true" aria-label="Submit your Classic score">
     <div class="modalCard">
 
       <div class="modalTitle">
@@ -101,49 +108,11 @@
     </div>
   </div>
 
-<script>
-  (function () {
-    function show(msg) {
-      var box = document.getElementById("errbox");
-      if (!box) {
-        box = document.createElement("div");
-        box.id = "errbox";
-        box.style.cssText =
-          "position:fixed;left:8px;right:8px;top:8px;z-index:999999;" +
-          "background:rgba(0,0,0,.86);color:#fff;padding:10px 12px;border-radius:12px;" +
-          "font:12px/1.35 system-ui;white-space:pre-wrap;max-height:50vh;overflow:auto;";
-        document.body.appendChild(box);
-      }
-      box.textContent = msg;
-    }
 
-    // Global JS errors
-    window.addEventListener("error", function (e) {
-      show("JS ERROR:\n" + (e.message || e) + "\n" + (e.filename || "") + ":" + (e.lineno || ""));
-    });
-
-    // Promise errors
-    window.addEventListener("unhandledrejection", function (e) {
-      show("PROMISE ERROR:\n" + (e.reason && e.reason.message ? e.reason.message : String(e.reason)));
-    });
-
-    // Resource load errors (THIS is the missing piece, capture = true)
-    window.addEventListener("error", function (e) {
-      var t = e.target;
-      if (t && (t.tagName === "SCRIPT" || t.tagName === "LINK")) {
-        show("RESOURCE ERROR:\n" + t.tagName + " failed to load\n" + (t.src || t.href || "(no url)"));
-      }
-    }, true);
-
-    setTimeout(function () {
-      show("Debugger loaded ✅\nWaiting for module script…");
-    }, 300);
-  })();
-</script>
 
   <!-- GAME SCRIPT -->
   <!-- IMPORTANT: must be type="module" -->
-<script type="module" src="game.js"></script>
+<script type="module" src="game.js?v=2"></script>
 
 </body>
 </html>

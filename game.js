@@ -2,19 +2,14 @@
 // Firebase Firestore leaderboard + total plays + name entry modal
 // Random cat color each run + floating sky cats + yarn ball gates + treat counter UI
 
-import { initializeApp } from "https://www.gstatic.com/firebasejs/12.9.0/firebase-app.js";
-import {
-  getFirestore,
-  collection,
-  addDoc,
-  query,
-  orderBy,
-  limit,
-  getDocs,
-  doc,
-  runTransaction,
-  serverTimestamp
-} from "https://www.gstatic.com/firebasejs/12.9.0/firebase-firestore.js";
+import { challengeDay, daySeed, courseRandom, HOUSE_CATS, dailyBestKey } from './challenge.js?v=2';
+let initializeApp, getFirestore, collection, addDoc, query, orderBy, limit, getDocs, doc, runTransaction, serverTimestamp;
+const preview = new URLSearchParams(location.search).get('demo') === '1';
+const readSetting = key => { try { return localStorage.getItem(key); } catch { return null; } };
+const saveSetting = (key, value) => { try { localStorage.setItem(key, value); } catch {} };
+let mode = 'classic', runDay = challengeDay(), paused = false, muted = readSetting('flapurr_muted') === '1';
+let nextCourse = courseRandom(Math.random() * 4294967296);
+const bestKey = () => mode === 'daily' ? dailyBestKey(runDay) : 'flapurr_best';
 
 // ---------- Firebase config ----------
 const firebaseConfig = {
@@ -38,6 +33,8 @@ const playsEl = document.getElementById("plays");
 const boardEl = document.getElementById("board");
 
 const modal = document.getElementById("modal");
+// Keep score entry visible inside native game fullscreen.
+document.querySelector(".stage").append(modal);
 const finalScoreEl = document.getElementById("finalScore");
 const nameInput = document.getElementById("name");
 const submitBtn = document.getElementById("submit");
@@ -46,14 +43,20 @@ const submitStatus = document.getElementById("submitStatus");
 
 const setNet = (m) => { if (netStatus) netStatus.textContent = m; };
 
-// iOS pinch/tap zoom weirdness helper
-document.addEventListener("gesturestart", (e) => e.preventDefault(), { passive: false });
+
 
 // ---------- Firebase ----------
 let db = null;
 
 async function initFirebase() {
+  if (preview) { setNet('Sample preview · leaderboard and play counter are disabled.'); return; }
   try {
+    const [appSdk, firestoreSdk] = await Promise.all([
+      import('https://www.gstatic.com/firebasejs/12.9.0/firebase-app.js'),
+      import('https://www.gstatic.com/firebasejs/12.9.0/firebase-firestore.js')
+    ]);
+    ({initializeApp} = appSdk);
+    ({getFirestore,collection,addDoc,query,orderBy,limit,getDocs,doc,runTransaction,serverTimestamp} = firestoreSdk);
     const app = initializeApp(firebaseConfig);
     db = getFirestore(app);
     setNet("Connected to cat HQ ✅");
@@ -62,7 +65,7 @@ async function initFirebase() {
     await refreshLeaderboard();
   } catch (e) {
     console.error(e);
-    setNet("Firebase error: " + (e?.message || String(e)));
+    setNet("Cat HQ is taking a break. You can still play; online scores are unavailable.");
   }
 }
 
@@ -106,7 +109,7 @@ async function refreshLeaderboard() {
 }
 
 async function submitScore(name, score) {
-  if (!db) return { ok: false, msg: "Firebase not connected." };
+  if (!db || mode !== "classic") return { ok: false, msg: "Online scores are available in Classic when connected." };
 
   const cleanName = String(name || "").trim().slice(0, 16);
   if (cleanName.length < 1) return { ok: false, msg: "Name required (1–16 chars)." };
@@ -134,7 +137,7 @@ function openModal(score) {
   modal.classList.add("show");
   modal.setAttribute("aria-hidden", "false");
 
-  nameInput.value = localStorage.getItem("flapurr_name") || "";
+  nameInput.value = readSetting("flapurr_name") || "";
   setTimeout(() => nameInput.focus(), 50);
 }
 
@@ -146,7 +149,7 @@ function closeModal() {
 submitBtn.addEventListener("click", async () => {
   submitBtn.disabled = true;
   const nm = nameInput.value;
-  localStorage.setItem("flapurr_name", nm.trim().slice(0, 16));
+  saveSetting("flapurr_name", nm.trim().slice(0, 16));
 
   try {
     const res = await submitScore(nm, lastGameScore);
@@ -154,7 +157,7 @@ submitBtn.addEventListener("click", async () => {
     if (res.ok) setTimeout(closeModal, 700);
   } catch (e) {
     console.error(e);
-    submitStatus.textContent = "Submit failed. Check Firebase rules/config.";
+    submitStatus.textContent = "Could not submit your score. Please try again shortly.";
   } finally {
     submitBtn.disabled = false;
   }
@@ -239,7 +242,7 @@ let catStripeMode = 0; // 0 none, 1 heavy bands, 2 tabby, 3 mixed
 let started = false;
 let gameOver = false;
 let score = 0; // displayed as treats
-let best = Number(localStorage.getItem("flapurr_best") || 0);
+let best = Number(readSetting("flapurr_best") || 0);
 
 const cat = { x: 120, y: WORLD_H * 0.45, r: 18, vy: 0, rot: 0 };
 // Mouse bait the cat chases (purely visual, stays within cat hitbox front half)
@@ -264,6 +267,7 @@ let sparkles = []; // {x,y,vx,vy,life}
 // ---------- Tiny synth sounds ----------
 let audioCtx = null;
 function beep(freq, dur = 0.06, type = "triangle", gain = 0.04) {
+  if (muted) return;
   try {
     audioCtx = audioCtx || new (window.AudioContext || window.webkitAudioContext)();
     const o = audioCtx.createOscillator();
@@ -279,6 +283,7 @@ function beep(freq, dur = 0.06, type = "triangle", gain = 0.04) {
 }
 
 function hiss(dur = 0.20, gainValue = 0.08) {
+  if (muted) return;
   try {
 
     audioCtx = audioCtx || new (window.AudioContext || window.webkitAudioContext)();
@@ -310,6 +315,12 @@ function hiss(dur = 0.20, gainValue = 0.08) {
 
 // ---------- Helpers ----------
 function reset() {
+  paused = false;
+  runDay = challengeDay();
+  nextCourse = courseRandom(mode === 'daily' ? daySeed(runDay) : Math.random() * 4294967296);
+  best = Number(readSetting(bestKey()) || 0);
+  document.getElementById('pauseOverlay').hidden = true;
+  document.getElementById('dailyResult').textContent = '';
   started = false;
   gameOver = false;
   score = 0;
@@ -321,6 +332,7 @@ mouseColor = MOUSE_COLORS[Math.floor(rand() * MOUSE_COLORS.length)];
   catStyle = CAT_PALETTES[Math.floor(Math.random() * CAT_PALETTES.length)];
 // ~55% of runs have stripes, with 3 patterns
 catStripeMode = (rand() < 0.75) ? (1 + Math.floor(rand() * 3)) : 0; // stripes more often
+  if (mode === 'daily') { catStyle = HOUSE_CATS[daySeed(runDay) % HOUSE_CATS.length]; catStripeMode = 2; }
   cat.y = WORLD_H * 0.45;
   cat.vy = 0;
   cat.rot = 0;
@@ -333,7 +345,8 @@ catStripeMode = (rand() < 0.75) ? (1 + Math.floor(rand() * 3)) : 0; // stripes m
   pipes = [];
   for (let i = 0; i < 4; i++) addPipe(WORLD_W + 200 + i * PIPE_SPACING);
 
-  statusEl.textContent = `Ready • Best: ${best}`;
+  statusEl.textContent = `Ready • ${mode === "daily" ? "Daily best" : "Best"}: ${best}`;
+  updateControls();
 }
 
 function addPipe(x) {
@@ -341,7 +354,7 @@ function addPipe(x) {
   const marginBottom = GROUND_H + 70;
   const centerMin = marginTop + PIPE_GAP / 2;
   const centerMax = WORLD_H - marginBottom - PIPE_GAP / 2;
-  const gapCenter = centerMin + rand() * (centerMax - centerMin);
+  const gapCenter = centerMin + nextCourse() * (centerMax - centerMin);
   const BALL_COLORS = ["#ff7aa8", "#7ac7ff", "#7dffb3", "#ffd77a", "#b58cff", "#ff8f7a"];
 
 pipes.push({
@@ -407,8 +420,8 @@ function drawKnot(cx, cy, r, baseHex, r01) {
 }
 
 function flap() {
-  if (!started) started = true;
-  if (gameOver) return;
+  if (paused || gameOver || modal.classList.contains("show")) return;
+  if (!started) { started = true; updateControls(); }
   cat.vy = FLAP_VY;
   beep(520, 0.04, "square", 0.03);
 }
@@ -423,11 +436,13 @@ hiss(0.14, 0.02);
 
   if (score > best) {
     best = score;
-    localStorage.setItem("flapurr_best", String(best));
+    saveSetting(bestKey(), String(best));
   }
 
   statusEl.textContent = `Game Over • Treats: ${score} • Best: ${best} • Tap to restart`;
-  openModal(score);
+  if (mode === "classic") openModal(score);
+  else document.getElementById("dailyResult").textContent = `${catStyle.name} collected ${score} treats! Today’s best: ${best}. Try the same course again.`;
+  updateControls();
 }
 
 function circleRectCollide(cx, cy, cr, rx, ry, rw, rh) {
@@ -661,42 +676,52 @@ function drawString(fromX, fromY, toX, toY) {
   ctx.stroke();
 }
 
-// Kill iOS double-tap-to-zoom + dblclick zoom
-let __lastTouchEnd = 0;
-
-document.addEventListener(
-  "touchend",
-  (e) => {
-    const now = Date.now();
-    if (now - __lastTouchEnd < 350) e.preventDefault();
-    __lastTouchEnd = now;
-  },
-  { passive: false }
-);
-
-document.addEventListener(
-  "dblclick",
-  (e) => e.preventDefault(),
-  { passive: false }
-);
-
-// ---------- Input ----------
-
-canvas.addEventListener("pointerdown", (e) => {
-  e.preventDefault();
-
-  if (gameOver) {
-    closeModal();
-    reset();
-    started = true;
-  }
-  flap();
-}, { passive: false });
-
-window.addEventListener("keydown", (e) => {
-  if (e.code === "Space") { e.preventDefault(); flap(); }
-  if (e.key.toLowerCase() === "r") { e.preventDefault(); closeModal(); reset(); }
-}, { passive: false });
+// ---------- Input and play controls ----------
+function updateControls() {
+  const pause = document.getElementById('pause');
+  pause.disabled = !started || gameOver;
+  pause.textContent = paused ? '▶ Resume' : 'Ⅱ Pause';
+  pause.setAttribute('aria-pressed', String(paused));
+  document.getElementById('sound').textContent = muted ? 'Sound off' : 'Sound on';
+  document.getElementById('sound').setAttribute('aria-pressed', String(muted));
+  document.querySelectorAll('[data-mode]').forEach(button => button.setAttribute('aria-pressed', String(button.dataset.mode === mode)));
+  document.getElementById('challengeInfo').textContent = mode === 'daily'
+    ? `${runDay} · Fly with ${HOUSE_CATS[daySeed(runDay) % 3].name} · Same course all day · Best: ${best}`
+    : 'A fresh course and a new cat each run. Collect treats and climb the Top Cats board.';
+  document.getElementById('dailyNote').hidden = mode !== 'daily';
+}
+function setPaused(value) {
+  if (!started || gameOver) return;
+  paused = value; lastTime = 0;
+  document.getElementById('pauseOverlay').hidden = !paused;
+  statusEl.textContent = paused ? 'Paused · your run is safe here' : `Playing • Treats: ${score} • Best: ${best}`;
+  updateControls();
+  if (paused && document.visibilityState === 'visible') document.getElementById('resume').focus();
+  else if (!paused) canvas.focus({preventScroll:true});
+}
+document.getElementById('pause').addEventListener('click', () => setPaused(!paused));
+document.getElementById('resume').addEventListener('click', () => setPaused(false));
+document.getElementById('restart').addEventListener('click', () => { closeModal(); reset(); canvas.focus({preventScroll:true}); });
+document.getElementById('sound').addEventListener('click', () => { muted = !muted; saveSetting('flapurr_muted', muted ? '1' : '0'); updateControls(); });
+document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'hidden') setPaused(true); });
+document.querySelectorAll('[data-mode]').forEach(button => button.addEventListener('click', () => {
+  if (mode === button.dataset.mode) return;
+  mode = button.dataset.mode; closeModal(); reset();
+}));
+canvas.addEventListener('pointerdown', event => {
+  event.preventDefault();
+  if (paused) return;
+  if (gameOver) { closeModal(); reset(); }
+  canvas.focus({preventScroll:true}); flap();
+}, {passive:false});
+window.addEventListener('keydown', event => {
+  if (event.target.closest('input,textarea,select,[contenteditable="true"]') || modal.classList.contains('show') || event.repeat) return;
+  if (event.key.toLowerCase() === 'p' || event.key === 'Escape') { event.preventDefault(); setPaused(!paused); return; }
+  if (event.target.closest('button')) return;
+  if (event.code === 'Space') { event.preventDefault(); if (gameOver) reset(); flap(); }
+  if (event.key.toLowerCase() === 'r') { event.preventDefault(); closeModal(); reset(); }
+});
+document.addEventListener('fullscreenchange', resizeCanvasToCSS);
 
 // ---------- Drawing ----------
 function drawBG() {
@@ -951,6 +976,10 @@ if (catStripeMode !== 0) {
 }
 
   // eyes
+  if (catStyle.eyes) {
+    ctx.fillStyle = catStyle.eyes;
+    for (const x of [-6, 6]) { ctx.beginPath(); ctx.ellipse(x, -2, 4.2, 3.6, 0, 0, Math.PI * 2); ctx.fill(); }
+  }
   ctx.fillStyle = "#0b1020";
   ctx.beginPath(); ctx.arc(-6, -2, 2.2, 0, Math.PI * 2); ctx.fill();
   ctx.beginPath(); ctx.arc( 6, -2, 2.2, 0, Math.PI * 2); ctx.fill();
@@ -1031,12 +1060,12 @@ function update(now = 0) {
   lastTime = now;
 
   // prevent huge jumps (tab switch / lag)
-  dt = Math.max(0, Math.min(2.5, dt));
+  dt = paused ? 0 : Math.max(0, Math.min(2.5, dt));
 
   time60 += dt;
   t = time60; // keep your sin() animations working
 
-  if (started && !gameOver) {
+  if (started && !gameOver && !paused) {
     // physics (dt-based)
     cat.vy += GRAVITY * dt;
     cat.y  += cat.vy * dt;
