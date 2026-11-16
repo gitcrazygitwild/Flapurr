@@ -6,7 +6,7 @@
   <title>Flapurr! 🐾</title>
 
   <!-- Styles -->
-  <link rel="stylesheet" href="style.css?v=2" />
+  <link rel="stylesheet" href="style.css?v=3" />
 
   <!-- Prevent weird mobile zoom / scroll -->
   <style>
@@ -22,11 +22,12 @@
     <header class="top">
       <h1>Flapurr! 🐱</h1>
       <div class="hint">
-        Tap to flap • Dodge scratch posts • Submit your score
+        A little flight. A lot of cat.
       </div>
     </header>
 
-    <div class="play-modes" role="group" aria-label="Game mode"><button type="button" data-mode="classic" aria-pressed="true">Classic</button><button type="button" data-mode="daily" aria-pressed="false">✦ Daily cat challenge</button></div>
+    <div class="play-modes" role="group" aria-label="Game mode"><button type="button" data-mode="classic" aria-pressed="true">Classic</button><button type="button" data-mode="daily" aria-pressed="false">✦ Daily challenge</button><button type="button" data-mode="practice" aria-pressed="false">Practice</button></div>
+    <div class="crew-picker"><label for="pilot">Your copilot</label><select id="pilot"><option value="random">Surprise me</option value="Hubert">Hubert · yellow eyes</option><option value="Mack">Mack · green eyes</option><option value="Mia">Mia · blue eyes</option></select></div>
     <p id="challengeInfo" class="challenge-info"></p>
     <!-- GAME AREA -->
     <div class="stage">
@@ -38,9 +39,11 @@
       <button id="fs" class="fs" type="button" aria-label="Toggle full screen">⛶</button>
     </div>
 
-    <div class="after-game"><span>Space to flap · P to pause · R to restart</span><button id="restart" class="btnGhost" type="button">↻ New run</button></div>
+    <div class="after-game"><span><kbd>Space</kbd> start / flap / retry · P pause</span><button id="restart" class="btnGhost" type="button">↻ New run</button></div>
+    <section id="runResult" class="run-result" hidden aria-labelledby="resultTitle"><div><span id="resultMedal" class="result-medal" aria-hidden="true"></span><h2 id="resultTitle"></h2><p id="resultSummary"></p></div><div class="result-actions"><button id="retry" class="btnPrimary" type="button">Fly again ↗</button><button id="copyResult" class="btnGhost" type="button">Copy result</button><button id="shareScore" class="btnGhost" type="button">Post to Top Cats</button></div><p id="resultStatus" role="status"></p><textarea id="resultCopyFallback" readonly hidden aria-label="Select and copy your flight result"></textarea></section>
     <p id="dailyNote" class="daily-note" hidden>One course per day, shared by everyone. Your daily best stays on this device; the Top Cats board is for Classic. Resets at midnight Eastern.</p>
     <p id="dailyResult" class="daily-result" role="status"></p>
+    <details class="panel flight-log"><summary>Your flight log <span id="flightTotals"></span></summary><p class="tiny">Saved on this device. Practice stays separate from competitive scores.</p><ol id="recentFlights"></ol></details>
     <!-- LEADERBOARD + STATS -->
     <section class="panel">
 
@@ -112,7 +115,7 @@
 
   <!-- GAME SCRIPT -->
   <!-- IMPORTANT: must be type="module" -->
-<script type="module" src="game.js?v=2"></script>
+<script type="module" src="game.js?v=3"></script>
 
 </body>
 </html>

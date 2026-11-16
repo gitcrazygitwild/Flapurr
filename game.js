@@ -2,6 +2,7 @@
 // Firebase Firestore leaderboard + total plays + name entry modal
 // Random cat color each run + floating sky cats + yarn ball gates + treat counter UI
 
+import { WORLD, fitViewport, rulesFor, circleRectCollide, fixedStepper, MILESTONES, medalFor, readFlightLog, recordFlight, resultText } from './game-core.js?v=3';
 import { challengeDay, daySeed, courseRandom, HOUSE_CATS, dailyBestKey } from './challenge.js?v=2';
 let initializeApp, getFirestore, collection, addDoc, query, orderBy, limit, getDocs, doc, runTransaction, serverTimestamp;
 const preview = new URLSearchParams(location.search).get('demo') === '1';
@@ -9,7 +10,11 @@ const readSetting = key => { try { return localStorage.getItem(key); } catch { r
 const saveSetting = (key, value) => { try { localStorage.setItem(key, value); } catch {} };
 let mode = 'classic', runDay = challengeDay(), paused = false, muted = readSetting('flapurr_muted') === '1';
 let nextCourse = courseRandom(Math.random() * 4294967296);
-const bestKey = () => mode === 'daily' ? dailyBestKey(runDay) : 'flapurr_best';
+const bestKey = () => mode === 'daily' ? dailyBestKey(runDay) : mode === 'practice' ? 'flapurr_practice_best' : 'flapurr_best';
+let selectedPilot=readSetting('flapurr_pilot') || 'random', flightLog=readFlightLog(readSetting('flapurr_flights_v1')), lastResult=null, milestone=null;
+let currentRules=rulesFor(mode);
+const stepper=fixedStepper();
+const reducedMotion=matchMedia('(prefers-reduced-motion: reduce)');
 
 // ---------- Firebase config ----------
 const firebaseConfig = {
@@ -34,7 +39,7 @@ const boardEl = document.getElementById("board");
 
 const modal = document.getElementById("modal");
 // Keep score entry visible inside native game fullscreen.
-document.querySelector(".stage").append(modal);
+document.querySelector(".stage").append(document.getElementById('runResult'),modal);
 const finalScoreEl = document.getElementById("finalScore");
 const nameInput = document.getElementById("name");
 const submitBtn = document.getElementById("submit");
@@ -133,6 +138,7 @@ function openModal(score) {
   lastGameScore = score;
   finalScoreEl.textContent = String(score);
   submitStatus.textContent = "";
+  submitBtn.disabled=!!lastResult?.submitted;
 
   modal.classList.add("show");
   modal.setAttribute("aria-hidden", "false");
@@ -147,6 +153,7 @@ function closeModal() {
 }
 
 submitBtn.addEventListener("click", async () => {
+  if(submitBtn.disabled)return;
   submitBtn.disabled = true;
   const nm = nameInput.value;
   saveSetting("flapurr_name", nm.trim().slice(0, 16));
@@ -154,12 +161,12 @@ submitBtn.addEventListener("click", async () => {
   try {
     const res = await submitScore(nm, lastGameScore);
     submitStatus.textContent = res.msg;
-    if (res.ok) setTimeout(closeModal, 700);
+    if (res.ok) {lastResult.submitted=true;document.getElementById('shareScore').disabled=true;setTimeout(()=>{closeModal();canvas.focus({preventScroll:true});},700);}
   } catch (e) {
     console.error(e);
     submitStatus.textContent = "Could not submit your score. Please try again shortly.";
   } finally {
-    submitBtn.disabled = false;
+    submitBtn.disabled = !!lastResult?.submitted;
   }
 });
 
@@ -167,8 +174,8 @@ skipBtn.addEventListener("click", () => closeModal());
 
 
 // ---------- Canvas scaling ----------
-const WORLD_W = 420;
-const WORLD_H = 640;
+const WORLD_W = WORLD.width;
+const WORLD_H = WORLD.height;
 
 let scale = 1, offsetX = 0, offsetY = 0;
 
@@ -176,15 +183,10 @@ function resizeCanvasToCSS() {
   const rect = canvas.getBoundingClientRect();
   const cssW = Math.max(1, Math.floor(rect.width));
   const cssH = Math.max(1, Math.floor(rect.height));
-  const dpr = Math.max(1, window.devicePixelRatio || 1);
-
-  canvas.width = Math.floor(cssW * dpr);
-  canvas.height = Math.floor(cssH * dpr);
-
-  const s = Math.min(cssW / WORLD_W, cssH / WORLD_H);
-  scale = s;
-  offsetX = (cssW - WORLD_W * s) / 2;
-  offsetY = (cssH - WORLD_H * s) / 2;
+  const viewport=fitViewport(cssW,cssH,window.devicePixelRatio || 1);
+  const dpr=viewport.dpr;
+  canvas.width=viewport.width;canvas.height=viewport.height;
+  scale=viewport.scale;offsetX=viewport.x;offsetY=viewport.y;
 
   ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
   ctx.translate(offsetX, offsetY);
@@ -194,6 +196,7 @@ function resizeCanvasToCSS() {
 resizeCanvasToCSS();
 window.addEventListener("resize", resizeCanvasToCSS);
 window.addEventListener("orientationchange", resizeCanvasToCSS);
+new ResizeObserver(resizeCanvasToCSS).observe(canvas);
 
 fsBtn?.addEventListener("click", async () => {
   try {
@@ -205,10 +208,6 @@ fsBtn?.addEventListener("click", async () => {
 });
 
 // ---------- Game constants ----------
-const GRAVITY = 0.45;
-const FLAP_VY = -8.3;
-const PIPE_SPEED = 2.55;
-const PIPE_GAP = 150;
 const PIPE_W = 70;
 const PIPE_SPACING = 210;
 const GROUND_H = 86;
@@ -245,8 +244,7 @@ let score = 0; // displayed as treats
 let best = Number(readSetting("flapurr_best") || 0);
 
 const cat = { x: 120, y: WORLD_H * 0.45, r: 18, vy: 0, rot: 0 };
-// Mouse bait the cat chases (purely visual, stays within cat hitbox front half)
-// Mouse bait the cat chases
+// The mouse is decorative and never changes the cat’s collision radius.
 const mouse = { x: cat.x, y: cat.y, vx: 0, vy: 0 };
 
 const MOUSE_ANCHOR = 0.72;   // stays within cat hitbox (logic position)
@@ -316,6 +314,9 @@ function hiss(dur = 0.20, gainValue = 0.08) {
 // ---------- Helpers ----------
 function reset() {
   paused = false;
+  currentRules=rulesFor(mode);stepper.reset();milestone=null;
+  document.getElementById('runResult').hidden=true;
+  document.getElementById('resultCopyFallback').hidden=true;
   runDay = challengeDay();
   nextCourse = courseRandom(mode === 'daily' ? daySeed(runDay) : Math.random() * 4294967296);
   best = Number(readSetting(bestKey()) || 0);
@@ -332,7 +333,8 @@ mouseColor = MOUSE_COLORS[Math.floor(rand() * MOUSE_COLORS.length)];
   catStyle = CAT_PALETTES[Math.floor(Math.random() * CAT_PALETTES.length)];
 // ~55% of runs have stripes, with 3 patterns
 catStripeMode = (rand() < 0.75) ? (1 + Math.floor(rand() * 3)) : 0; // stripes more often
-  if (mode === 'daily') { catStyle = HOUSE_CATS[daySeed(runDay) % HOUSE_CATS.length]; catStripeMode = 2; }
+  const chosen=mode==='daily' ? HOUSE_CATS[daySeed(runDay)%HOUSE_CATS.length] : HOUSE_CATS.find(cat=>cat.name===selectedPilot);
+  if(chosen){catStyle=chosen;catStripeMode=2;}
   cat.y = WORLD_H * 0.45;
   cat.vy = 0;
   cat.rot = 0;
@@ -352,8 +354,8 @@ catStripeMode = (rand() < 0.75) ? (1 + Math.floor(rand() * 3)) : 0; // stripes m
 function addPipe(x) {
   const marginTop = 70;
   const marginBottom = GROUND_H + 70;
-  const centerMin = marginTop + PIPE_GAP / 2;
-  const centerMax = WORLD_H - marginBottom - PIPE_GAP / 2;
+  const centerMin = marginTop + currentRules.gap / 2;
+  const centerMax = WORLD_H - marginBottom - currentRules.gap / 2;
   const gapCenter = centerMin + nextCourse() * (centerMax - centerMin);
   const BALL_COLORS = ["#ff7aa8", "#7ac7ff", "#7dffb3", "#ffd77a", "#b58cff", "#ff8f7a"];
 
@@ -392,37 +394,11 @@ function drawFray(rx, y, rw, dir, r01) {
   ctx.restore();
 }
 
-function drawKnot(cx, cy, r, baseHex, r01) {
-  // knot = small fuzzy oval + a couple cross strands
-  ctx.save();
-  const g = ctx.createRadialGradient(cx - r*0.3, cy - r*0.3, r*0.2, cx, cy, r);
-  g.addColorStop(0, shade(baseHex, +0.10));
-  g.addColorStop(1, shade(baseHex, -0.25));
-  ctx.fillStyle = g;
-  ctx.beginPath();
-  ctx.ellipse(cx, cy, r*1.25, r*0.9, (r01()-0.5)*0.4, 0, Math.PI*2);
-  ctx.fill();
-
-  ctx.globalAlpha = 0.25;
-  ctx.strokeStyle = "rgba(255,255,255,0.35)";
-  ctx.lineWidth = 2;
-  ctx.beginPath();
-  ctx.moveTo(cx - r*1.1, cy - r*0.2);
-  ctx.lineTo(cx + r*1.1, cy + r*0.2);
-  ctx.stroke();
-
-  ctx.beginPath();
-  ctx.moveTo(cx - r*0.8, cy + r*0.35);
-  ctx.lineTo(cx + r*0.8, cy - r*0.35);
-  ctx.stroke();
-
-  ctx.restore();
-}
 
 function flap() {
   if (paused || gameOver || modal.classList.contains("show")) return;
   if (!started) { started = true; updateControls(); }
-  cat.vy = FLAP_VY;
+  cat.vy = currentRules.flapVelocity;
   beep(520, 0.04, "square", 0.03);
 }
 
@@ -440,18 +416,19 @@ hiss(0.14, 0.02);
   }
 
   statusEl.textContent = `Game Over • Treats: ${score} • Best: ${best} • Tap to restart`;
-  if (mode === "classic") openModal(score);
-  else document.getElementById("dailyResult").textContent = `${catStyle.name} collected ${score} treats! Today’s best: ${best}. Try the same course again.`;
+  lastResult={score,mode,cat:catStyle.name || 'Mystery cat',day:runDay};
+  flightLog=recordFlight(flightLog,lastResult);saveSetting('flapurr_flights_v1',JSON.stringify(flightLog));renderFlightLog();
+  const medal=medalFor(score);
+  document.getElementById('runResult').hidden=false;
+  document.getElementById('resultMedal').textContent=medal.icon;
+  document.getElementById('resultTitle').textContent=medal.name;
+  document.getElementById('resultSummary').textContent=`${lastResult.cat} collected ${score} treats. ${mode==='daily'?'Today’s':mode==='practice'?'Practice':'Classic'} best: ${best}. Press Space to fly again.`;
+  document.getElementById('resultStatus').textContent='';
+  document.getElementById('shareScore').hidden=mode!=='classic' || preview;
+  document.getElementById('shareScore').disabled=false;
   updateControls();
 }
 
-function circleRectCollide(cx, cy, cr, rx, ry, rw, rh) {
-  const closestX = Math.max(rx, Math.min(cx, rx + rw));
-  const closestY = Math.max(ry, Math.min(cy, ry + rh));
-  const dx = cx - closestX;
-  const dy = cy - closestY;
-  return (dx * dx + dy * dy) <= cr * cr;
-}
 
 function roundRect(x, y, w, h, r) {
   const rr = Math.min(r, w / 2, h / 2);
@@ -593,17 +570,6 @@ function drawRopePost(x, y, w, h, flipCaps = false, seed = 1) {
 
   ctx.lineCap = "round";
 
-  // occasional knots (per post)
-  const knotCount = ropeH > 120 ? 1 + (r01() < 0.25 ? 1 : 0) : (r01() < 0.20 ? 1 : 0);
-  const knots = [];
-  for (let i = 0; i < knotCount; i++) {
-    knots.push({
-      x: rx + rw * (0.30 + r01() * 0.40),
-      y: ropeTop + ropeH * (0.15 + r01() * 0.70),
-      r: 5 + r01() * 4
-    });
-  }
-
   for (let yy = ropeTop - 40; yy < ropeTop + ropeH + 40; yy += step) {
     const j = Math.sin(yy * 0.06) * ropeYJitter; // static, no time component
     // thickness variation
@@ -624,11 +590,6 @@ function drawRopePost(x, y, w, h, flipCaps = false, seed = 1) {
     ctx.lineTo(rx + rw + 30, yy + j + rw * slope - 1);
     ctx.stroke();
   }
-
-  // draw knots on top of wraps
-    // for (const k of knots) {
-    // drawKnot(k.x, k.y, k.r, ropeBase, r01);
-   // }
 
   ctx.restore();
 
@@ -687,12 +648,13 @@ function updateControls() {
   document.querySelectorAll('[data-mode]').forEach(button => button.setAttribute('aria-pressed', String(button.dataset.mode === mode)));
   document.getElementById('challengeInfo').textContent = mode === 'daily'
     ? `${runDay} · Fly with ${HOUSE_CATS[daySeed(runDay) % 3].name} · Same course all day · Best: ${best}`
-    : 'A fresh course and a new cat each run. Collect treats and climb the Top Cats board.';
+    : mode==='practice' ? 'Wider gaps, a gentler pace. Find your rhythm; Practice never posts to Top Cats.' : 'A fresh course every run. Collect treats and climb the Top Cats board.';
+  const picker=document.getElementById('pilot');picker.disabled=mode==='daily';picker.value=mode==='daily'?catStyle.name:selectedPilot;
   document.getElementById('dailyNote').hidden = mode !== 'daily';
 }
 function setPaused(value) {
   if (!started || gameOver) return;
-  paused = value; lastTime = 0;
+  paused = value; lastTime = 0;stepper.reset();
   document.getElementById('pauseOverlay').hidden = !paused;
   statusEl.textContent = paused ? 'Paused · your run is safe here' : `Playing • Treats: ${score} • Best: ${best}`;
   updateControls();
@@ -702,11 +664,11 @@ function setPaused(value) {
 document.getElementById('pause').addEventListener('click', () => setPaused(!paused));
 document.getElementById('resume').addEventListener('click', () => setPaused(false));
 document.getElementById('restart').addEventListener('click', () => { closeModal(); reset(); canvas.focus({preventScroll:true}); });
-document.getElementById('sound').addEventListener('click', () => { muted = !muted; saveSetting('flapurr_muted', muted ? '1' : '0'); updateControls(); });
+document.getElementById('sound').addEventListener('click', () => { muted = !muted; saveSetting('flapurr_muted', muted ? '1' : '0'); updateControls();canvas.focus({preventScroll:true}); });
 document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'hidden') setPaused(true); });
 document.querySelectorAll('[data-mode]').forEach(button => button.addEventListener('click', () => {
   if (mode === button.dataset.mode) return;
-  mode = button.dataset.mode; closeModal(); reset();
+  mode = button.dataset.mode; closeModal(); reset();canvas.focus({preventScroll:true});
 }));
 canvas.addEventListener('pointerdown', event => {
   event.preventDefault();
@@ -715,12 +677,31 @@ canvas.addEventListener('pointerdown', event => {
   canvas.focus({preventScroll:true}); flap();
 }, {passive:false});
 window.addEventListener('keydown', event => {
-  if (event.target.closest('input,textarea,select,[contenteditable="true"]') || modal.classList.contains('show') || event.repeat) return;
-  if (event.key.toLowerCase() === 'p' || event.key === 'Escape') { event.preventDefault(); setPaused(!paused); return; }
-  if (event.target.closest('button')) return;
-  if (event.code === 'Space') { event.preventDefault(); if (gameOver) reset(); flap(); }
-  if (event.key.toLowerCase() === 'r') { event.preventDefault(); closeModal(); reset(); }
+  if(modal.classList.contains('show')){if(event.key==='Escape'){event.preventDefault();closeModal();canvas.focus({preventScroll:true});}return;}
+  if(event.target.closest('input,textarea,select,[contenteditable="true"]'))return;
+  if(event.code==='Space') {
+    event.preventDefault();if(event.repeat)return;
+    if(gameOver)reset();if(paused)setPaused(false);canvas.focus({preventScroll:true});flap();return;
+  }
+  if(event.repeat)return;
+  if(event.key.toLowerCase()==='p' || event.key==='Escape'){event.preventDefault();setPaused(!paused);}
+  if(event.key.toLowerCase()==='r'){event.preventDefault();closeModal();reset();canvas.focus({preventScroll:true});}
 });
+document.getElementById('pilot').addEventListener('change',event=>{selectedPilot=event.target.value;saveSetting('flapurr_pilot',selectedPilot);closeModal();reset();canvas.focus({preventScroll:true});});
+document.getElementById('retry').addEventListener('click',()=>{reset();canvas.focus({preventScroll:true});flap();});
+document.getElementById('shareScore').addEventListener('click',()=>{if(lastResult?.mode==='classic')openModal(lastResult.score);});
+document.getElementById('copyResult').addEventListener('click',async()=>{
+  if(!lastResult)return;
+  const text=resultText(lastResult);
+  try{await navigator.clipboard.writeText(text);document.getElementById('resultStatus').textContent='Copied. Send a little cat brag.';canvas.focus({preventScroll:true});}
+  catch{const field=document.getElementById('resultCopyFallback');field.hidden=false;field.value=text;field.focus();field.select();document.getElementById('resultStatus').textContent='Select and copy this result.';}
+});
+function renderFlightLog() {
+  document.getElementById('flightTotals').textContent=`${flightLog.runs} flights · ${flightLog.treats} treats collected`;
+  const list=document.getElementById('recentFlights');list.replaceChildren();
+  for(const run of flightLog.recent){const row=document.createElement('li'),label=document.createElement('span'),score=document.createElement('strong');label.textContent=`${run.cat} · ${run.mode} · ${run.day}`;score.textContent=`${medalFor(run.score).icon} ${run.score}`;row.append(label,score);list.append(row);}
+  if(!flightLog.recent.length){const row=document.createElement('li');row.textContent='Your next adventure starts the log.';list.append(row);}
+}
 document.addEventListener('fullscreenchange', resizeCanvasToCSS);
 
 // ---------- Drawing ----------
@@ -744,7 +725,7 @@ function drawBG() {
 
   // floating sky cats
   for (let i = 0; i < 6; i++) {
-    const x = ((t * 0.45) + i * 140) % (WORLD_W + 200) - 100;
+    const x = (((reducedMotion.matches ? 0 : t) * 0.45) + i * 140) % (WORLD_W + 200) - 100;
     const y = 80 + (i * 57) % 240;
     const s = 0.6 + (i % 3) * 0.12;
     drawSkyCat(x, y, s, i);
@@ -787,8 +768,8 @@ function drawSkyCat(x, y, s, i) {
 
 function drawPipes() {
   for (const p of pipes) {
-    const topH = p.gapCenter - PIPE_GAP / 2;
-    const botY = p.gapCenter + PIPE_GAP / 2;
+    const topH = p.gapCenter - currentRules.gap / 2;
+    const botY = p.gapCenter + currentRules.gap / 2;
     const botH = (WORLD_H - GROUND_H) - botY;
 
     // posts (tan)
@@ -1047,27 +1028,20 @@ function drawUI() {
     ctx.fillText("FLAPURR!", WORLD_W / 2, WORLD_H / 2 - 40);
     ctx.font = "600 16px system-ui";
     ctx.globalAlpha = 0.85;
-    ctx.fillText("Tap to flap", WORLD_W / 2, WORLD_H / 2 + 4);
-    ctx.fillText("Pass yarn balls to collect treats 🐟", WORLD_W / 2, WORLD_H / 2 + 28);
+    ctx.fillText("Space or tap to fly", WORLD_W / 2, WORLD_H / 2 + 4);
+    ctx.fillText(mode==='practice' ? "Find your rhythm. You’ve got this." : "Pass yarn gates. Collect treats.", WORLD_W / 2, WORLD_H / 2 + 28);
     ctx.globalAlpha = 1;
   }
 }
 
 // ---------- Loop ----------
-function update(now = 0) {
-  if (!lastTime) lastTime = now;
-  let dt = (now - lastTime) / 16.6667; // 1.0 at 60fps
-  lastTime = now;
-
-  // prevent huge jumps (tab switch / lag)
-  dt = paused ? 0 : Math.max(0, Math.min(2.5, dt));
-
+function simulate(dt) {
   time60 += dt;
   t = time60; // keep your sin() animations working
 
   if (started && !gameOver && !paused) {
     // physics (dt-based)
-    cat.vy += GRAVITY * dt;
+    cat.vy += currentRules.gravity * dt;
     cat.y  += cat.vy * dt;
     cat.rot = Math.max(-0.55, Math.min(1.0, cat.vy / 12));
 
@@ -1092,7 +1066,7 @@ function update(now = 0) {
     mouse.x = Math.max(minX, Math.min(maxX, mouse.x));
 
     // pipes move (dt-based)
-    for (const p of pipes) p.x -= PIPE_SPEED * dt;
+    for (const p of pipes) p.x -= currentRules.speed * dt;
 
     // recycle pipes
     if (pipes.length && pipes[0].x + PIPE_W < -20) {
@@ -1106,10 +1080,11 @@ function update(now = 0) {
       if (!p.passed && p.x + PIPE_W < cat.x - cat.r) {
         p.passed = true;
         score += 1;
+        const earned=MILESTONES.find(m=>m.score===score);if(earned)milestone={...earned,frames:100};
         statusEl.textContent = `Playing • Treats: ${score} • Best: ${best}`;
         beep(740, 0.05, "triangle", 0.03);
 
-        for (let i = 0; i < 10; i++) {
+        for (let i = 0; i < (reducedMotion.matches ? 0 : 10); i++) {
           sparkles.push({
             x: cat.x + 10,
             y: cat.y,
@@ -1127,8 +1102,8 @@ function update(now = 0) {
 
     // collisions
     for (const p of pipes) {
-      const topH = p.gapCenter - PIPE_GAP / 2;
-      const botY = p.gapCenter + PIPE_GAP / 2;
+      const topH = p.gapCenter - currentRules.gap / 2;
+      const botY = p.gapCenter + currentRules.gap / 2;
       const botH = (WORLD_H - GROUND_H) - botY;
 
       if (circleRectCollide(cat.x, cat.y, cat.r, p.x, 0, PIPE_W, topH)) setGameOver();
@@ -1145,8 +1120,17 @@ function update(now = 0) {
     sp.life -= dt;
   }
 
-  // draw (restore your draw block!)
+  if(milestone) {milestone.frames-=dt;if(milestone.frames<=0)milestone=null;}
+}
+function update(now=0) {
+  const elapsed=lastTime ? now-lastTime : 0;lastTime=now;
+  if(!paused)stepper.advance(elapsed,simulate);
+  // Clear the ENTIRE backing bitmap, including letterbox margins, before
+  // returning to world coordinates. Clip all artwork to the playable area.
+  ctx.save();ctx.setTransform(1,0,0,1,0,0);ctx.globalAlpha=1;
+  ctx.clearRect(0,0,canvas.width,canvas.height);ctx.fillStyle='#0b1020';ctx.fillRect(0,0,canvas.width,canvas.height);ctx.restore();
   ctx.save();
+  ctx.beginPath();ctx.rect(0,0,WORLD_W,WORLD_H);ctx.clip();
   ctx.globalAlpha = 1;
   ctx.globalCompositeOperation = "source-over";
   ctx.filter = "none";
@@ -1166,13 +1150,15 @@ function update(now = 0) {
   drawMouse();
   ctx.globalAlpha = 1;
   drawUI();
-
+  if(milestone && !gameOver){ctx.font='600 15px system-ui';ctx.textAlign='center';ctx.fillStyle='#b8f3cc';ctx.fillText(`${milestone.icon} ${milestone.name}`,WORLD_W/2,125);}
+  if(mode==='practice' && started && !gameOver){const next=pipes.find(p=>p.x+PIPE_W>=cat.x-cat.r);if(next){ctx.save();ctx.setLineDash([4,7]);ctx.strokeStyle='#b6efd055';ctx.beginPath();ctx.moveTo(cat.x+35,next.gapCenter);ctx.lineTo(next.x+PIPE_W,next.gapCenter);ctx.stroke();ctx.restore();}}
   ctx.restore();
 
   requestAnimationFrame(update);
 }
 
 // ---------- Start ----------
+renderFlightLog();
 reset();
 update();
 setNet("Connecting to cat HQ…");
