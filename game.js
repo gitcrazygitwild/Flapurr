@@ -1,8 +1,10 @@
 // game.js (ES module) — Flapurr!
 // Firebase Firestore leaderboard + total plays + name entry modal
-// Random cat color each run + floating sky cats + yarn ball gates + treat counter UI
+// House cats, cosmetic skies, yarn gates, and local crew progress
 
-import { WORLD, fitViewport, rulesFor, circleRectCollide, fixedStepper, MILESTONES, medalFor, readFlightLog, recordFlight, resultText } from './game-core.js?v=3';
+import { WORLD, fitViewport, rulesFor, circleRectCollide, fixedStepper, MILESTONES, medalFor, readFlightLog, recordFlight, resultText } from './game-core.js?v=4';
+import { readCrewProgress, recordCrewFlight, stampCount, availableSky, isCleanPass, flightAdvice } from './crew-progress.js';
+import { catAvatar, renderCrew } from './crew-ui.js';
 import { challengeDay, daySeed, courseRandom, HOUSE_CATS, dailyBestKey } from './challenge.js?v=2';
 let initializeApp, getFirestore, collection, addDoc, query, orderBy, limit, getDocs, doc, runTransaction, serverTimestamp;
 const preview = new URLSearchParams(location.search).get('demo') === '1';
@@ -12,6 +14,10 @@ let mode = 'classic', runDay = challengeDay(), paused = false, muted = readSetti
 let nextCourse = courseRandom(Math.random() * 4294967296);
 const bestKey = () => mode === 'daily' ? dailyBestKey(runDay) : mode === 'practice' ? 'flapurr_practice_best' : 'flapurr_best';
 let selectedPilot=readSetting('flapurr_pilot') || 'random', flightLog=readFlightLog(readSetting('flapurr_flights_v1')), lastResult=null, milestone=null;
+let crewProgress = readCrewProgress(readSetting('flapurr_crew_v1'), flightLog.recent);
+saveSetting('flapurr_crew_v1', JSON.stringify(crewProgress));
+let sky = availableSky(readSetting('flapurr_sky'), crewProgress);
+let flightStats = { frames: 0, clean: 0, streak: 0, bestStreak: 0 }, flightCallout = null;
 let currentRules=rulesFor(mode);
 const stepper=fixedStepper();
 const reducedMotion=matchMedia('(prefers-reduced-motion: reduce)');
@@ -54,7 +60,7 @@ const setNet = (m) => { if (netStatus) netStatus.textContent = m; };
 let db = null;
 
 async function initFirebase() {
-  if (preview) { setNet('Sample preview · leaderboard and play counter are disabled.'); return; }
+  if (preview) { setNet('Preview · online scores are disabled.'); boardEl.innerHTML = '<li class="board-empty">Your local adventures still count.</li>'; document.getElementById('refreshBoard').disabled = true; return; }
   try {
     const [appSdk, firestoreSdk] = await Promise.all([
       import('https://www.gstatic.com/firebasejs/12.9.0/firebase-app.js'),
@@ -66,11 +72,16 @@ async function initFirebase() {
     db = getFirestore(app);
     setNet("Connected to cat HQ ✅");
 
-    await incrementPlays();
-    await refreshLeaderboard();
+    // A blocked visit counter must not prevent reading the leaderboard.
+    const results = await Promise.allSettled([incrementPlays(), refreshLeaderboard()]);
+    if (results[1].status === 'rejected') {
+      boardEl.innerHTML = '<li class="board-empty">Top Cats is unavailable right now.</li>';
+      setNet('You can keep flying. Refresh the board to reconnect.');
+    } else setNet(results[0].status === 'rejected' ? 'Top Cats is up to date. Visit count unavailable.' : 'Top Cats is up to date.');
   } catch (e) {
     console.error(e);
     setNet("Cat HQ is taking a break. You can still play; online scores are unavailable.");
+    boardEl.innerHTML = '<li class="board-empty">The crew is still cleared for takeoff.</li>';
   }
 }
 
@@ -93,11 +104,10 @@ async function incrementPlays() {
 
 async function refreshLeaderboard() {
   if (!db) return;
-  boardEl.innerHTML = "";
-
   const q = query(collection(db, "scores"), orderBy("score", "desc"), limit(10));
   const snap = await getDocs(q);
 
+  boardEl.replaceChildren();
   if (snap.empty) {
     boardEl.innerHTML = "<li>No scores yet. Be the first cat!</li>";
     return;
@@ -108,7 +118,10 @@ async function refreshLeaderboard() {
     const safeName = String(data.name || "Anonymous").slice(0, 16);
     const safeScore = Math.max(0, Math.min(9999, Math.floor(Number(data.score || 0))));
     const li = document.createElement("li");
-    li.textContent = `${safeName} — ${safeScore}`;
+    const rank = document.createElement('span'); rank.className = 'board-rank'; rank.textContent = String(boardEl.children.length + 1).padStart(2, '0');
+    const name = document.createElement('span'); name.textContent = safeName;
+    const score = document.createElement('strong'); score.textContent = String(Number.isFinite(safeScore) ? safeScore : 0);
+    li.append(rank, name, score);
     boardEl.appendChild(li);
   });
 }
@@ -127,18 +140,28 @@ async function submitScore(name, score) {
     createdAt: serverTimestamp()
   });
 
-  await refreshLeaderboard();
+  // A successful write stays successful even if the subsequent read fails.
+  await refreshLeaderboard().catch(() => setNet('Your score was saved. Refresh Top Cats to see the latest board.'));
   return { ok: true, msg: "Submitted! 🐾" };
 }
 
 // ---------- Modal ----------
+document.getElementById('refreshBoard').addEventListener('click', async event => {
+  const button = event.currentTarget; button.disabled = true;
+  try { if (!db) await initFirebase(); else { await refreshLeaderboard(); setNet('Top Cats is up to date.'); } }
+  catch { setNet('Could not refresh Top Cats. Your local game is ready.'); }
+  finally { button.disabled = preview; }
+});
+
 let lastGameScore = 0;
+let modalReturnFocus = null;
 
 function openModal(score) {
+  modalReturnFocus = document.activeElement;
   lastGameScore = score;
   finalScoreEl.textContent = String(score);
   submitStatus.textContent = "";
-  submitBtn.disabled=!!lastResult?.submitted;
+  submitBtn.disabled=!!(lastResult?.submitted || lastResult?.submitting);
 
   modal.classList.add("show");
   modal.setAttribute("aria-hidden", "false");
@@ -150,23 +173,33 @@ function openModal(score) {
 function closeModal() {
   modal.classList.remove("show");
   modal.setAttribute("aria-hidden", "true");
+  if (modalReturnFocus?.isConnected) modalReturnFocus.focus({preventScroll:true});
+  modalReturnFocus = null;
 }
 
 submitBtn.addEventListener("click", async () => {
-  if(submitBtn.disabled)return;
+  const result = lastResult;
+  if (submitBtn.disabled || !result || result.submitted || result.submitting) return;
+  result.submitting = true;
   submitBtn.disabled = true;
-  const nm = nameInput.value;
-  saveSetting("flapurr_name", nm.trim().slice(0, 16));
-
+  const name = nameInput.value;
+  saveSetting("flapurr_name", name.trim().slice(0, 16));
   try {
-    const res = await submitScore(nm, lastGameScore);
-    submitStatus.textContent = res.msg;
-    if (res.ok) {lastResult.submitted=true;document.getElementById('shareScore').disabled=true;setTimeout(()=>{closeModal();canvas.focus({preventScroll:true});},700);}
-  } catch (e) {
-    console.error(e);
-    submitStatus.textContent = "Could not submit your score. Please try again shortly.";
+    const response = await submitScore(name, result.score);
+    if (response.ok) result.submitted = true;
+    if (lastResult === result) {
+      submitStatus.textContent = response.msg;
+      document.getElementById('shareScore').disabled = !!result.submitted;
+      if (response.ok) setTimeout(() => {
+        if (lastResult === result && modal.classList.contains('show')) { closeModal(); canvas.focus({preventScroll:true}); }
+      }, 700);
+    }
+  } catch (error) {
+    console.error(error);
+    if (lastResult === result) submitStatus.textContent = "Could not submit your score. Please try again shortly.";
   } finally {
-    submitBtn.disabled = !!lastResult?.submitted;
+    result.submitting = false;
+    if (lastResult === result) submitBtn.disabled = !!result.submitted;
   }
 });
 
@@ -227,14 +260,7 @@ function makeRng(seed) {
 
 
 // ---------- Cat palettes (random each reset) ----------
-const CAT_PALETTES = [
-  { body: "#ffd6a6", ear: "#ffbf80", stripe: "rgba(120,60,20,0.35)" },  // ginger
-  { body: "#cfcfd6", ear: "#b9b9c2", stripe: "rgba(50,50,60,0.28)" },   // gray
-  { body: "#2b2b2f", ear: "#3a3a40", stripe: "rgba(255,255,255,0.10)" },// black
-  { body: "#fff2d7", ear: "#f0d9b2", stripe: "rgba(120,90,40,0.22)" },  // cream
-  { body: "#b07a4a", ear: "#9a6a40", stripe: "rgba(40,20,10,0.25)" },   // brown
-];
-let catStyle = CAT_PALETTES[Math.floor(Math.random() * CAT_PALETTES.length)];
+let catStyle = HOUSE_CATS[0];
 let catStripeMode = 0; // 0 none, 1 heavy bands, 2 tabby, 3 mixed
 
 // ---------- State ----------
@@ -315,6 +341,7 @@ function hiss(dur = 0.20, gainValue = 0.08) {
 function reset() {
   paused = false;
   currentRules=rulesFor(mode);stepper.reset();milestone=null;
+  flightStats = {frames:0,clean:0,streak:0,bestStreak:0}; flightCallout = null;
   document.getElementById('runResult').hidden=true;
   document.getElementById('resultCopyFallback').hidden=true;
   runDay = challengeDay();
@@ -330,11 +357,8 @@ function reset() {
   time60=0;
   sparkles = [];
 mouseColor = MOUSE_COLORS[Math.floor(rand() * MOUSE_COLORS.length)];
-  catStyle = CAT_PALETTES[Math.floor(Math.random() * CAT_PALETTES.length)];
-// ~55% of runs have stripes, with 3 patterns
-catStripeMode = (rand() < 0.75) ? (1 + Math.floor(rand() * 3)) : 0; // stripes more often
-  const chosen=mode==='daily' ? HOUSE_CATS[daySeed(runDay)%HOUSE_CATS.length] : HOUSE_CATS.find(cat=>cat.name===selectedPilot);
-  if(chosen){catStyle=chosen;catStripeMode=2;}
+  catStyle = mode === 'daily' ? HOUSE_CATS[daySeed(runDay) % HOUSE_CATS.length] : HOUSE_CATS.find(cat => cat.name === selectedPilot) || HOUSE_CATS[Math.floor(Math.random() * HOUSE_CATS.length)];
+  catStripeMode = 2;
   cat.y = WORLD_H * 0.45;
   cat.vy = 0;
   cat.rot = 0;
@@ -402,13 +426,11 @@ function flap() {
   beep(520, 0.04, "square", 0.03);
 }
 
-function setGameOver() {
+function setGameOver(reason = '') {
   if (gameOver) return;
   gameOver = true;
-
-
-
-hiss(0.14, 0.02);
+  const newBest = score > best, beforeStamps = stampCount(crewProgress);
+  hiss(0.14, 0.02);
 
   if (score > best) {
     best = score;
@@ -416,13 +438,20 @@ hiss(0.14, 0.02);
   }
 
   statusEl.textContent = `Game Over • Treats: ${score} • Best: ${best} • Tap to restart`;
-  lastResult={score,mode,cat:catStyle.name || 'Mystery cat',day:runDay};
+  lastResult={score,mode,cat:catStyle.name,day:runDay};
+  crewProgress = recordCrewFlight(crewProgress, lastResult);
+  saveSetting('flapurr_crew_v1', JSON.stringify(crewProgress));
+  updateCrew();
   flightLog=recordFlight(flightLog,lastResult);saveSetting('flapurr_flights_v1',JSON.stringify(flightLog));renderFlightLog();
   const medal=medalFor(score);
   document.getElementById('runResult').hidden=false;
   document.getElementById('resultMedal').textContent=medal.icon;
-  document.getElementById('resultTitle').textContent=medal.name;
+  document.getElementById('resultTitle').textContent=newBest ? 'A new personal best!' : medal.name;
   document.getElementById('resultSummary').textContent=`${lastResult.cat} collected ${score} treats. ${mode==='daily'?'Today’s':mode==='practice'?'Practice':'Classic'} best: ${best}. Press Space to fly again.`;
+  document.getElementById('resultStats').textContent = `${Math.floor(flightStats.frames / 60)}s airborne · ${flightStats.clean} clean passes · best streak ${flightStats.bestStreak}`;
+  document.getElementById('flightAdvice').textContent = flightAdvice(reason, score);
+  const gained = stampCount(crewProgress) - beforeStamps;
+  document.getElementById('crewReward').textContent = gained ? `✦ ${gained} new crew stamp${gained === 1 ? '' : 's'}! ${stampCount(crewProgress) >= 6 && beforeStamps < 6 ? 'Catnip aurora unlocked.' : stampCount(crewProgress) >= 3 && beforeStamps < 3 ? 'Peach sunset unlocked.' : 'A little closer to your next sky.'}` : '';
   document.getElementById('resultStatus').textContent='';
   document.getElementById('shareScore').hidden=mode!=='classic' || preview;
   document.getElementById('shareScore').disabled=false;
@@ -641,16 +670,21 @@ function drawString(fromX, fromY, toX, toY) {
 function updateControls() {
   const pause = document.getElementById('pause');
   pause.disabled = !started || gameOver;
-  pause.textContent = paused ? '▶ Resume' : 'Ⅱ Pause';
+  pause.textContent = paused ? 'Resume' : 'Pause';
   pause.setAttribute('aria-pressed', String(paused));
   document.getElementById('sound').textContent = muted ? 'Sound off' : 'Sound on';
   document.getElementById('sound').setAttribute('aria-pressed', String(muted));
+  document.getElementById('sound').setAttribute('aria-label', muted ? 'Enable game sounds' : 'Mute game sounds');
   document.querySelectorAll('[data-mode]').forEach(button => button.setAttribute('aria-pressed', String(button.dataset.mode === mode)));
   document.getElementById('challengeInfo').textContent = mode === 'daily'
     ? `${runDay} · Fly with ${HOUSE_CATS[daySeed(runDay) % 3].name} · Same course all day · Best: ${best}`
     : mode==='practice' ? 'Wider gaps, a gentler pace. Find your rhythm; Practice never posts to Top Cats.' : 'A fresh course every run. Collect treats and climb the Top Cats board.';
   const picker=document.getElementById('pilot');picker.disabled=mode==='daily';picker.value=mode==='daily'?catStyle.name:selectedPilot;
   document.getElementById('dailyNote').hidden = mode !== 'daily';
+  document.getElementById('pilotAvatar').innerHTML = catAvatar(catStyle.name);
+  document.getElementById('pilotName').textContent = catStyle.name;
+  document.getElementById('pilotDescription').textContent = mode === 'daily' ? 'Today’s daily challenge pilot.' : catStyle.name === 'Hubert' ? 'Dark tabby. Golden eyes. Big plans.' : catStyle.name === 'Mack' ? 'Green eyes. Endless curiosity.' : 'Blue eyes. Head in the clouds.';
+  updateHUD();
 }
 function setPaused(value) {
   if (!started || gameOver) return;
@@ -677,7 +711,16 @@ canvas.addEventListener('pointerdown', event => {
   canvas.focus({preventScroll:true}); flap();
 }, {passive:false});
 window.addEventListener('keydown', event => {
-  if(modal.classList.contains('show')){if(event.key==='Escape'){event.preventDefault();closeModal();canvas.focus({preventScroll:true});}return;}
+  if (modal.classList.contains('show')) {
+    if (event.key === 'Escape') { event.preventDefault(); closeModal(); }
+    if (event.key === 'Enter' && event.target === nameInput) { event.preventDefault(); submitBtn.click(); }
+    if (event.key === 'Tab') {
+      const focusable = [...modal.querySelectorAll('input,button')].filter(item => !item.disabled), first = focusable[0], last = focusable.at(-1);
+      if (event.shiftKey && document.activeElement === first) { event.preventDefault(); last.focus(); }
+      else if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first.focus(); }
+    }
+    return;
+  }
   if(event.target.closest('input,textarea,select,[contenteditable="true"]'))return;
   if(event.code==='Space') {
     event.preventDefault();if(event.repeat)return;
@@ -696,6 +739,15 @@ document.getElementById('copyResult').addEventListener('click',async()=>{
   try{await navigator.clipboard.writeText(text);document.getElementById('resultStatus').textContent='Copied. Send a little cat brag.';canvas.focus({preventScroll:true});}
   catch{const field=document.getElementById('resultCopyFallback');field.hidden=false;field.value=text;field.focus();field.select();document.getElementById('resultStatus').textContent='Select and copy this result.';}
 });
+function updateHUD() {
+  document.getElementById('hudBest').textContent = Math.max(best, score);
+  document.getElementById('hudClean').textContent = flightStats.clean;
+  const next = MILESTONES.find(medal => medal.score > score);
+  document.getElementById('hudNext').textContent = next ? `${next.score - score} treat${next.score - score === 1 ? '' : 's'}` : 'Legend ✦';
+}
+function updateCrew() {
+  renderCrew(crewProgress, sky, id => { sky = availableSky(id, crewProgress); saveSetting('flapurr_sky', sky.id); updateCrew(); });
+}
 function renderFlightLog() {
   document.getElementById('flightTotals').textContent=`${flightLog.runs} flights · ${flightLog.treats} treats collected`;
   const list=document.getElementById('recentFlights');list.replaceChildren();
@@ -707,8 +759,8 @@ document.addEventListener('fullscreenchange', resizeCanvasToCSS);
 // ---------- Drawing ----------
 function drawBG() {
   const g = ctx.createLinearGradient(0, 0, 0, WORLD_H);
-  g.addColorStop(0, "#121b2e");
-  g.addColorStop(1, "#0b1020");
+  g.addColorStop(0, sky.top);
+  g.addColorStop(1, sky.bottom);
   ctx.fillStyle = g;
   ctx.fillRect(0, 0, WORLD_W, WORLD_H);
 
@@ -718,11 +770,17 @@ function drawBG() {
     const x = (i * 97 + 13) % WORLD_W;
     const y = (i * 151 + 29) % (WORLD_H - 180);
     const tw = 1 + (i % 3);
-    ctx.fillStyle = "#cfe3ff";
+    ctx.fillStyle = sky.star;
     ctx.fillRect(x, y, tw, tw);
   }
   ctx.globalAlpha = 1;
 
+  // Cosmetic sky palettes never affect the course or collision geometry.
+  if (sky.id !== 'midnight') {
+    ctx.save(); ctx.globalAlpha = .12; ctx.fillStyle = sky.glow;
+    for (let i = 0; i < 3; i++) { ctx.beginPath(); ctx.ellipse(280 - i * 75, 110 + i * 40, 180, 38, -.5, 0, Math.PI * 2); ctx.fill(); }
+    ctx.restore();
+  }
   // floating sky cats
   for (let i = 0; i < 6; i++) {
     const x = (((reducedMotion.matches ? 0 : t) * 0.45) + i * 140) % (WORLD_W + 200) - 100;
@@ -735,7 +793,7 @@ function drawBG() {
 function drawSkyCat(x, y, s, i) {
   ctx.globalAlpha = 1;
   ctx.save();
-  ctx.translate(x, y + Math.sin((t + i * 40) * 0.03) * 6);
+  ctx.translate(x, y + (reducedMotion.matches ? 0 : Math.sin((t + i * 40) * 0.03) * 6));
   ctx.scale(s, s);
   ctx.globalAlpha = 0.18;
   ctx.fillStyle = "#cfe3ff";
@@ -1025,11 +1083,11 @@ function drawUI() {
 
   if (!started && !gameOver) {
     ctx.font = "800 34px system-ui";
-    ctx.fillText("FLAPURR!", WORLD_W / 2, WORLD_H / 2 - 40);
+    ctx.fillText("FLAPURR!", WORLD_W / 2, WORLD_H / 2 + 40);
     ctx.font = "600 16px system-ui";
     ctx.globalAlpha = 0.85;
-    ctx.fillText("Space or tap to fly", WORLD_W / 2, WORLD_H / 2 + 4);
-    ctx.fillText(mode==='practice' ? "Find your rhythm. You’ve got this." : "Pass yarn gates. Collect treats.", WORLD_W / 2, WORLD_H / 2 + 28);
+    ctx.fillText("Space or tap to fly", WORLD_W / 2, WORLD_H / 2 + 82);
+    ctx.fillText(mode==='practice' ? "Find your rhythm. You’ve got this." : "Pass yarn gates. Collect treats.", WORLD_W / 2, WORLD_H / 2 + 106);
     ctx.globalAlpha = 1;
   }
 }
@@ -1040,6 +1098,7 @@ function simulate(dt) {
   t = time60; // keep your sin() animations working
 
   if (started && !gameOver && !paused) {
+    flightStats.frames += dt;
     // physics (dt-based)
     cat.vy += currentRules.gravity * dt;
     cat.y  += cat.vy * dt;
@@ -1080,6 +1139,11 @@ function simulate(dt) {
       if (!p.passed && p.x + PIPE_W < cat.x - cat.r) {
         p.passed = true;
         score += 1;
+        if (isCleanPass(cat.y, p.gapCenter, currentRules.gap)) {
+          flightStats.clean++; flightStats.streak++; flightStats.bestStreak = Math.max(flightStats.bestStreak, flightStats.streak);
+          flightCallout = { text: flightStats.streak > 1 ? `${flightStats.streak} clean passes in a row!` : 'Clean pass. Very catlike.', frames: 80 };
+        } else flightStats.streak = 0;
+        updateHUD();
         const earned=MILESTONES.find(m=>m.score===score);if(earned)milestone={...earned,frames:100};
         statusEl.textContent = `Playing • Treats: ${score} • Best: ${best}`;
         beep(740, 0.05, "triangle", 0.03);
@@ -1098,7 +1162,7 @@ function simulate(dt) {
 
     // bounds
     if (cat.y - cat.r < 0) { cat.y = cat.r; cat.vy = 0; }
-    if (cat.y + cat.r > WORLD_H - GROUND_H) setGameOver();
+    if (cat.y + cat.r > WORLD_H - GROUND_H) setGameOver('ground');
 
     // collisions
     for (const p of pipes) {
@@ -1106,8 +1170,8 @@ function simulate(dt) {
       const botY = p.gapCenter + currentRules.gap / 2;
       const botH = (WORLD_H - GROUND_H) - botY;
 
-      if (circleRectCollide(cat.x, cat.y, cat.r, p.x, 0, PIPE_W, topH)) setGameOver();
-      if (circleRectCollide(cat.x, cat.y, cat.r, p.x, botY, PIPE_W, botH)) setGameOver();
+      if (circleRectCollide(cat.x, cat.y, cat.r, p.x, 0, PIPE_W, topH)) setGameOver('upper');
+      if (circleRectCollide(cat.x, cat.y, cat.r, p.x, botY, PIPE_W, botH)) setGameOver('lower');
     }
   }
 
@@ -1120,6 +1184,7 @@ function simulate(dt) {
     sp.life -= dt;
   }
 
+  if (flightCallout) { flightCallout.frames -= dt; if (flightCallout.frames <= 0) flightCallout = null; }
   if(milestone) {milestone.frames-=dt;if(milestone.frames<=0)milestone=null;}
 }
 function update(now=0) {
@@ -1151,6 +1216,7 @@ function update(now=0) {
   ctx.globalAlpha = 1;
   drawUI();
   if(milestone && !gameOver){ctx.font='600 15px system-ui';ctx.textAlign='center';ctx.fillStyle='#b8f3cc';ctx.fillText(`${milestone.icon} ${milestone.name}`,WORLD_W/2,125);}
+  else if(flightCallout && !gameOver){ctx.font='600 14px system-ui';ctx.textAlign='center';ctx.fillStyle='#e8c89d';ctx.fillText(flightCallout.text,WORLD_W/2,125);}
   if(mode==='practice' && started && !gameOver){const next=pipes.find(p=>p.x+PIPE_W>=cat.x-cat.r);if(next){ctx.save();ctx.setLineDash([4,7]);ctx.strokeStyle='#b6efd055';ctx.beginPath();ctx.moveTo(cat.x+35,next.gapCenter);ctx.lineTo(next.x+PIPE_W,next.gapCenter);ctx.stroke();ctx.restore();}}
   ctx.restore();
 
@@ -1159,6 +1225,7 @@ function update(now=0) {
 
 // ---------- Start ----------
 renderFlightLog();
+updateCrew();
 reset();
 update();
 setNet("Connecting to cat HQ…");
