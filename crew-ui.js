@@ -1,5 +1,6 @@
 import { HOUSE_CATS } from "./challenge.js";
 import { crewStamps, stampCount, SKIES } from "./crew-progress.js";
+import { HATS, nextHat, readFish } from "./wardrobe.js?v=1";
 export function catAvatar(name) {
   const cat = HOUSE_CATS.find((cat) => cat.name === name) || HOUSE_CATS[0];
   return `<svg viewBox="0 0 64 64" aria-hidden="true"><rect width="64" height="64" rx="21" fill="${cat.body}18"/><path d="M12 31 10 11 28 22m9 0 17-11-2 21" fill="${cat.ear}" stroke="${cat.body}" stroke-width="3"/><ellipse cx="32" cy="37" rx="23" ry="20" fill="${cat.body}"/><path d="m23 21 4 8m5-11v10m9-7-4 8M11 36l8 3m-7 7 8-2m33-8-8 3m7 7-8-2" stroke="${cat.stripe}" stroke-width="3" stroke-linecap="round"/><ellipse cx="23" cy="37" rx="5" ry="5.5" fill="${cat.eyes}"/><ellipse cx="41" cy="37" rx="5" ry="5.5" fill="${cat.eyes}"/><path d="M23 34v6m18-6v6" stroke="#18202a" stroke-width="2.5" stroke-linecap="round"/><path d="m29 44 3 3 3-3" fill="#d6a69f"/><path d="M26 49q3 3 6-2 3 5 6 2" fill="none" stroke="${cat.stripe}" stroke-width="1.8" stroke-linecap="round"/></svg>`;
@@ -67,4 +68,34 @@ export function renderCrew(progress, sky, onSky) {
       : stamps < 6
         ? `${6 - stamps} more stamps unlock Catnip aurora.`
         : "Every sky is yours. The crew approves.";
+}
+
+// The hat rack: hats unlock with lifetime golden fish.
+export function renderWardrobe(fish, selected, onHat) {
+  const total = readFish(fish);
+  document.getElementById("fishTotal").textContent = `🐠 ${total}`;
+  const picker = document.getElementById("hatPicker");
+  picker.replaceChildren();
+  for (const hat of HATS) {
+    const locked = total < hat.fish,
+      button = element("button", "hat-choice");
+    button.type = "button";
+    button.disabled = locked;
+    button.setAttribute("aria-pressed", String(hat.id === selected));
+    button.setAttribute(
+      "aria-label",
+      `${hat.name}${locked ? `, unlock at ${hat.fish} golden fish` : ""}`,
+    );
+    button.append(
+      element("span", "hat-icon", hat.icon),
+      element("span", "", hat.name),
+      element("small", "", locked ? `🐠 ${hat.fish}` : hat.fish ? "Unlocked" : "Classic"),
+    );
+    button.addEventListener("click", () => onHat(hat.id));
+    picker.append(button);
+  }
+  const next = nextHat(total);
+  document.getElementById("hatNext").textContent = next
+    ? `${next.fish - total} more golden fish for the ${next.name.toLowerCase()}.`
+    : "Every hat is yours. Very distinguished.";
 }

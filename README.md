@@ -48,3 +48,14 @@ After a crash in **Classic**, a player who has at least one treat can **Continue
 4. **Add a privacy policy page.** For visitors in the EU, UK or Switzerland, turn on Google's consent message (AdSense → Privacy & messaging).
 5. **Set `AD_CONFIG`** in `ads.js` to `{ provider:'adsense', adsenseClient:'ca-pub-XXXXXXXXXXXXXXXX', testMode:true }`. Try it, since test mode shows Google's test ads. Then set `testMode:false`.
 6. **Consider restricting ad categories** in AdSense (Blocking controls), since family members play.
+
+## The big glow-up
+
+Six upgrades. Nothing here changes the course, the hitboxes, the score or the leaderboard: a post's hitbox is exactly the rectangle it always was.
+
+- **Scratching-post cat trees (visual):** the posts are now sisal-wrapped cat trees with cylinder shading, frayed fibres, carpeted perches (six colours) with plush tufts along the gap, wooden bases on the roof and ceiling plates up top. Tall posts sometimes have a carpeted cubby with a cat peeking out, blinking now and then. Every post keeps its own look for its whole trip across the screen (`scenery.js`, seeded per post).
+- **A living backdrop (visual):** two layers of city skyline scroll at different speeds behind the posts, with lit windows and a neighbour cat on a rooftop. Each sky gets its own centrepiece: a moon for Midnight, a banded setting sun for Peach sunset, and soft aurora curtains for Catnip aurora. Also twinkling stars, an occasional shooting star, cat-eared clouds and a tiled rooftop ground that moves with the course. The cat got inner ears, a belly, eye shine, a nose, blinks and a wagging tail, and after a crash it tumbles onto the roof with crossed eyes. Reduced-motion settings hold the scenery still.
+- **Golden fish (fun):** about 40% of posts have a golden fish floating in the open air behind them. Catching one is optional, risky and worth nothing to the score. Fish go in a jar saved on this device, the run's catch shows top right, and the result card tallies it. They're placed with the cosmetic random stream, never the course stream, so Daily courses stay identical for everyone.
+- **The hat rack (fun):** lifetime golden fish unlock hats your cat wears in flight: bow tie (3), party hat (8), sunglasses (15), wizard hat (25) and crown (40). Pick one in the new hat-rack panel; the choice is saved on this device (`wardrobe.js`).
+- **Resume countdown (practical):** unpausing shows a 3-2-1 ring (about 2 seconds) before anything moves, so a resume never drops you straight into a post.
+- **Install and play offline (practical):** a web app manifest, PNG app icons (`apple-touch-icon.png`, `icon-192/512.png`, maskable) and a network-first service worker (`sw.js`). Add Flapurr to a home screen and it opens full screen and keeps working without a connection. Online you always get the newest version; Firebase and ad requests are never cached. The worker is skipped in `?demo=1`.

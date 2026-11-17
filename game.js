@@ -4,8 +4,10 @@
 
 import { WORLD, fitViewport, rulesFor, circleRectCollide, fixedStepper, MILESTONES, medalFor, readFlightLog, recordFlight, resultText, continueAllowed, reviveShift } from './game-core.js?v=5';
 import { createAdProvider } from './ads.js?v=1';
+import { drawBackdrop, drawGroundArt, drawCatTree, drawGoldFish } from './scenery.js?v=1';
+import { readFish, availableHat, unlockedBetween, fishSpawn, fishCaught, drawHat } from './wardrobe.js?v=1';
 import { readCrewProgress, recordCrewFlight, stampCount, availableSky, isCleanPass, flightAdvice } from './crew-progress.js';
-import { catAvatar, renderCrew } from './crew-ui.js';
+import { catAvatar, renderCrew, renderWardrobe } from './crew-ui.js?v=2';
 import { challengeDay, daySeed, courseRandom, HOUSE_CATS, dailyBestKey } from './challenge.js?v=2';
 let initializeApp, getFirestore, collection, addDoc, query, orderBy, limit, getDocs, doc, runTransaction, serverTimestamp;
 const preview = new URLSearchParams(location.search).get('demo') === '1';
@@ -271,6 +273,9 @@ let gameOver = false;
 // bookkeeping if the run continues, so a run is counted once, when it truly ends.
 const ads = createAdProvider();
 let continueUsed = false, invulnerable = 0, crashSnapshot = null, offerToken = 0;
+// Scenery scroll, resume countdown (ms), golden fish and the chosen hat. All cosmetic.
+let worldScroll = 0, resumeLeft = 0, crashFall = false;
+let fishJar = readFish(readSetting('flapurr_fish_v1')), runFish = 0, jarAtStart = fishJar, hat = availableHat(readSetting('flapurr_hat'), fishJar);
 let score = 0; // displayed as treats
 let best = Number(readSetting("flapurr_best") || 0);
 
@@ -357,6 +362,7 @@ function reset() {
   started = false;
   gameOver = false;
   continueUsed = false; invulnerable = 0; crashSnapshot = null; offerToken++; hideContinue();
+  resumeLeft = 0; crashFall = false; runFish = 0; jarAtStart = fishJar;
   score = 0;
   t = 0;
   lastTime=0;
@@ -402,31 +408,13 @@ pipes.push({
   botR: 20 + rand() * 10,
   topColor: BALL_COLORS[Math.floor(rand() * BALL_COLORS.length)],
   botColor: BALL_COLORS[Math.floor(rand() * BALL_COLORS.length)],
+  // A golden fish sometimes floats behind the post (cosmetic RNG; never the course).
+  fish: fishSpawn(rand(), rand(), gapCenter, { postWidth:PIPE_W, spacing:PIPE_SPACING, top:70, bottom:WORLD_H - GROUND_H - 70 }),
 });
 }
 
-function drawFray(rx, y, rw, dir, r01) {
-  // little fibers poking out of the rope edge
-  ctx.save();
-  ctx.globalAlpha = 0.55;
-  ctx.strokeStyle = "rgba(255,255,255,0.55)";
-  ctx.lineWidth = 1.8;
-  ctx.lineCap = "round";
-
-  for (let i = 0; i < 18; i++) {
-    const x = rx + 6 + r01() * (rw - 12);
-    const len = 3 + r01() * 8;
-    ctx.beginPath();
-    ctx.moveTo(x, y);
-    ctx.lineTo(x + (r01() - 0.5) * 6, y + dir * len);
-    ctx.stroke();
-  }
-  ctx.restore();
-}
-
-
 function flap() {
-  if (paused || gameOver || modal.classList.contains("show")) return;
+  if (paused || gameOver || resumeLeft > 0 || modal.classList.contains("show")) return;
   if (!started) { started = true; updateControls(); }
   cat.vy = currentRules.flapVelocity;
   beep(520, 0.04, "square", 0.03);
@@ -436,6 +424,10 @@ function setGameOver(reason = '') {
   if (gameOver) return;
   gameOver = true;
   crashSnapshot = { best, flightLog, crewProgress };
+  if (!reducedMotion.matches) {
+    crashFall = true; if (reason !== 'ground') cat.vy = -4.5;
+    for (let i = 0; i < 9; i++) sparkles.push({ x:cat.x, y:cat.y, vx:(rand() - 0.5) * 4.5, vy:(rand() - 0.7) * 4, life:26, kind:'puff', color:catStyle.body });
+  }
   const newBest = score > best, beforeStamps = stampCount(crewProgress);
   hiss(0.14, 0.02);
 
@@ -459,6 +451,8 @@ function setGameOver(reason = '') {
   document.getElementById('flightAdvice').textContent = flightAdvice(reason, score);
   const gained = stampCount(crewProgress) - beforeStamps;
   document.getElementById('crewReward').textContent = gained ? `✦ ${gained} new crew stamp${gained === 1 ? '' : 's'}! ${stampCount(crewProgress) >= 6 && beforeStamps < 6 ? 'Catnip aurora unlocked.' : stampCount(crewProgress) >= 3 && beforeStamps < 3 ? 'Peach sunset unlocked.' : 'A little closer to your next sky.'}` : '';
+  const newHats = unlockedBetween(jarAtStart, fishJar);
+  document.getElementById('fishReward').textContent = runFish ? `🐠 +${runFish} golden fish · ${fishJar} in the jar.${newHats.length ? ` New for the hat rack: ${newHats.map(item => item.name).join(', ')}!` : ''}` : '';
   document.getElementById('resultStatus').textContent='';
   document.getElementById('shareScore').hidden=mode!=='classic' || preview || continueUsed;
   document.getElementById('shareScore').disabled=false;
@@ -496,7 +490,7 @@ function revive() {
   const next = pipes.find(p => p.x + PIPE_W >= cat.x - cat.r);
   cat.y = next ? next.gapCenter : WORLD_H * 0.45; cat.vy = 0; cat.rot = 0;
   mouse.x = cat.x + cat.r * MOUSE_ANCHOR; mouse.y = cat.y + MOUSE_YOFF; mouse.vx = 0; mouse.vy = 0;
-  continueUsed = true; invulnerable = 75; offerToken++;
+  continueUsed = true; invulnerable = 75; offerToken++; crashFall = false;
   gameOver = false; started = false; // hover until the next flap
   hideContinue();
   document.getElementById('runResult').hidden = true;
@@ -594,115 +588,6 @@ function drawYarnBall(cx, cy, r, base = "#ff7aa8") {
   ctx.restore();
 }
 
-function drawRopePost(x, y, w, h, flipCaps = false, seed = 1) {
-  const r01 = makeRng(seed);
-  const inset = 6;
-  const rx = x + inset;
-  const ry = y;
-  const rw = w - inset * 2;
-  const rh = h;
-
-  // core behind rope
-  ctx.fillStyle = "#cdb892";
-  roundRect(rx, ry, rw, rh, 10);
-  ctx.fill();
-
-  // caps sizes
-  const capH = Math.min(16, Math.max(10, h * 0.18));
-  const baseH = Math.min(22, Math.max(14, h * 0.22));
-
-  // rope area excludes caps a bit so fray sits nicely
-  const ropeTop = ry + capH * 0.70;
-  const ropeBot = ry + rh - baseH * 0.75;
-  const ropeH = Math.max(0, ropeBot - ropeTop);
-
-  // rope color family
-  const ropeBase = "#8b6a3f";
-
-  // --- rope texture (spiral wraps) ---
-  ctx.save();
-  ctx.beginPath();
-  roundRect(rx, ropeTop, rw, ropeH, 10);
-  ctx.clip();
-
-  // cylindrical shading
-  const edge = ctx.createLinearGradient(rx, 0, rx + rw, 0);
-  edge.addColorStop(0.0, "rgba(0,0,0,0.18)");
-  edge.addColorStop(0.18, "rgba(0,0,0,0.06)");
-  edge.addColorStop(0.50, "rgba(255,255,255,0.04)");
-  edge.addColorStop(0.82, "rgba(0,0,0,0.06)");
-  edge.addColorStop(1.0, "rgba(0,0,0,0.18)");
-  ctx.fillStyle = edge;
-  ctx.fillRect(rx, ropeTop, rw, ropeH);
-
-  // spiral parameters (less vertical)
-  const step = 12;
-  const slope = 0.28; // smaller = more horizontal
-  const ropeYJitter = 1.6;
-
-  const ropeDark = "rgba(125, 92, 48, 0.72)";
-  const ropeLight = "rgba(255, 255, 255, 0.22)";
-
-  ctx.lineCap = "round";
-
-  for (let yy = ropeTop - 40; yy < ropeTop + ropeH + 40; yy += step) {
-    const j = Math.sin(yy * 0.06) * ropeYJitter; // static, no time component
-    // thickness variation
-    const thick = 6.4 + (Math.sin(yy * 0.09) * 0.9);
-    // dark strand
-    ctx.strokeStyle = ropeDark;
-    ctx.lineWidth = thick;
-    ctx.beginPath();
-    ctx.moveTo(rx - 30, yy + j);
-    ctx.lineTo(rx + rw + 30, yy + j + rw * slope);
-    ctx.stroke();
-
-    // highlight
-    ctx.strokeStyle = ropeLight;
-    ctx.lineWidth = Math.max(1.8, thick * 0.32);
-    ctx.beginPath();
-    ctx.moveTo(rx - 30, yy + j - 1);
-    ctx.lineTo(rx + rw + 30, yy + j + rw * slope - 1);
-    ctx.stroke();
-  }
-
-  ctx.restore();
-
-  // frayed edges where rope meets caps
-    if (ropeH > 20) {
-    drawFray(rx, ropeTop + 1, rw, -1, r01);
-    drawFray(rx, ropeBot - 1, rw, +1, r01);
-   }
-
-// caps: normal = cap at top, base at bottom
-// flipCaps = cap at bottom (gap edge) and base at top
-const topCapY = flipCaps ? (y + h - capH + 2) : (y - 2);
-const baseY   = flipCaps ? (y - 2) : (y + h - baseH + 2);
-
-// cap
-ctx.fillStyle = "#9aa3b5";
-roundRect(x + 2, topCapY, w - 4, capH, 10);
-ctx.fill();
-
-ctx.fillStyle = "rgba(255,255,255,0.22)";
-roundRect(x + 6, topCapY + 3, w - 12, capH * 0.42, 10);
-ctx.fill();
-
-// base
-ctx.fillStyle = "#7f889b";
-roundRect(x - 2, baseY, w + 4, baseH, 12);
-ctx.fill();
-
-// base shadow (keep it near the bottom of whichever base is "down")
-ctx.fillStyle = "rgba(0,0,0,0.20)";
-if (!flipCaps) {
-  roundRect(x - 2, y + h - 8, w + 4, 10, 10);
-} else {
-  roundRect(x - 2, y + 2, w + 4, 10, 10);
-}
-ctx.fill();
-}
-
 function drawString(fromX, fromY, toX, toY) {
   ctx.strokeStyle = "rgba(255,255,255,0.25)";
   ctx.lineWidth = 2;
@@ -732,11 +617,13 @@ function updateControls() {
   document.getElementById('pilotDescription').textContent = mode === 'daily' ? 'Today’s daily challenge pilot.' : catStyle.name === 'Hubert' ? 'Dark tabby. Golden eyes. Big plans.' : catStyle.name === 'Mack' ? 'Green eyes. Endless curiosity.' : 'Blue eyes. Head in the clouds.';
   updateHUD();
 }
+const RESUME_MS = 1800;
 function setPaused(value) {
   if (!started || gameOver) return;
   paused = value; lastTime = 0;stepper.reset();
+  resumeLeft = paused ? 0 : RESUME_MS; // 3-2-1 before the cat moves again
   document.getElementById('pauseOverlay').hidden = !paused;
-  statusEl.textContent = paused ? 'Paused · your run is safe here' : `Playing • Treats: ${score} • Best: ${best}`;
+  statusEl.textContent = paused ? 'Paused · your run is safe here' : 'Get ready…';
   updateControls();
   if (paused && document.visibilityState === 'visible') document.getElementById('resume').focus();
   else if (!paused) canvas.focus({preventScroll:true});
@@ -794,6 +681,10 @@ function updateHUD() {
 function updateCrew() {
   renderCrew(crewProgress, sky, id => { sky = availableSky(id, crewProgress); saveSetting('flapurr_sky', sky.id); updateCrew(); });
 }
+function renderHats() {
+  hat = availableHat(hat.id, fishJar);
+  renderWardrobe(fishJar, hat.id, id => { hat = availableHat(id, fishJar); saveSetting('flapurr_hat', hat.id); renderHats(); canvas.focus({preventScroll:true}); });
+}
 function renderFlightLog() {
   document.getElementById('flightTotals').textContent=`${flightLog.runs} flights · ${flightLog.treats} treats collected`;
   const list=document.getElementById('recentFlights');list.replaceChildren();
@@ -804,70 +695,8 @@ document.addEventListener('fullscreenchange', resizeCanvasToCSS);
 
 // ---------- Drawing ----------
 function drawBG() {
-  const g = ctx.createLinearGradient(0, 0, 0, WORLD_H);
-  g.addColorStop(0, sky.top);
-  g.addColorStop(1, sky.bottom);
-  ctx.fillStyle = g;
-  ctx.fillRect(0, 0, WORLD_W, WORLD_H);
-
-  // stars
-  ctx.globalAlpha = 0.45;
-  for (let i = 0; i < 60; i++) {
-    const x = (i * 97 + 13) % WORLD_W;
-    const y = (i * 151 + 29) % (WORLD_H - 180);
-    const tw = 1 + (i % 3);
-    ctx.fillStyle = sky.star;
-    ctx.fillRect(x, y, tw, tw);
-  }
-  ctx.globalAlpha = 1;
-
   // Cosmetic sky palettes never affect the course or collision geometry.
-  if (sky.id !== 'midnight') {
-    ctx.save(); ctx.globalAlpha = .12; ctx.fillStyle = sky.glow;
-    for (let i = 0; i < 3; i++) { ctx.beginPath(); ctx.ellipse(280 - i * 75, 110 + i * 40, 180, 38, -.5, 0, Math.PI * 2); ctx.fill(); }
-    ctx.restore();
-  }
-  // floating sky cats
-  for (let i = 0; i < 6; i++) {
-    const x = (((reducedMotion.matches ? 0 : t) * 0.45) + i * 140) % (WORLD_W + 200) - 100;
-    const y = 80 + (i * 57) % 240;
-    const s = 0.6 + (i % 3) * 0.12;
-    drawSkyCat(x, y, s, i);
-  }
-}
-
-function drawSkyCat(x, y, s, i) {
-  ctx.globalAlpha = 1;
-  ctx.save();
-  ctx.translate(x, y + (reducedMotion.matches ? 0 : Math.sin((t + i * 40) * 0.03) * 6));
-  ctx.scale(s, s);
-  ctx.globalAlpha = 0.18;
-  ctx.fillStyle = "#cfe3ff";
-
-  // body
-  roundRect(-18, -8, 44, 22, 11);
-  ctx.fill();
-
-  // head
-  ctx.beginPath();
-  ctx.ellipse(-10, -10, 12, 10, 0, 0, Math.PI * 2);
-  ctx.fill();
-
-  // ears
-  ctx.beginPath(); ctx.moveTo(-18, -16); ctx.lineTo(-24, -26); ctx.lineTo(-10, -22); ctx.closePath(); ctx.fill();
-  ctx.beginPath(); ctx.moveTo(-2, -16);  ctx.lineTo(-6,  -26); ctx.lineTo(6,  -22); ctx.closePath(); ctx.fill();
-
-  // tail
-  ctx.lineCap = "round";
-  ctx.lineWidth = 6;
-  ctx.strokeStyle = "#cfe3ff";
-  ctx.beginPath();
-  ctx.moveTo(24, 6);
-  ctx.quadraticCurveTo(40, 0, 34, -10);
-  ctx.stroke();
-
-  ctx.restore();
-  ctx.globalAlpha = 1;
+  drawBackdrop(ctx, { sky, t, scroll:worldScroll, W:WORLD_W, H:WORLD_H, groundTop:WORLD_H - GROUND_H, still:reducedMotion.matches });
 }
 
 function drawPipes() {
@@ -877,8 +706,8 @@ function drawPipes() {
     const botH = (WORLD_H - GROUND_H) - botY;
 
     // posts (tan)
-    drawRopePost(p.x, 0,   PIPE_W, topH, true,  p.seed ^ 0xA1B2C3D4);
-    drawRopePost(p.x, botY, PIPE_W, botH, false, p.seed ^ 0x1F2E3D4C);
+    drawCatTree(ctx, { x:p.x, y:0, w:PIPE_W, h:topH, hanging:true, seed:p.seed ^ 0xA1B2C3D4, t });
+    drawCatTree(ctx, { x:p.x, y:botY, w:PIPE_W, h:botH, hanging:false, seed:p.seed ^ 0x1F2E3D4C, t });
     
     // yarn balls at the gap edges (SAFE positioning)
     const topR = Math.min(p.topR, PIPE_W * 0.48);
@@ -907,18 +736,18 @@ function drawPipes() {
 
     drawYarnBall(topBallX, topBallY, topR, p.topColor);
     drawYarnBall(botBallX, botBallY, botR, p.botColor);
+    if (p.fish && !p.fish.taken) drawGoldFish(ctx, p.x + p.fish.dx, p.fish.y + (reducedMotion.matches ? 0 : Math.sin(t * 0.08 + p.x * 0.01) * 4), t);
   }
 }
 
 function drawGround() {
-  ctx.fillStyle = "#0a0f1c";
-  ctx.fillRect(0, WORLD_H - GROUND_H, WORLD_W, GROUND_H);
+  drawGroundArt(ctx, { sky, scroll:worldScroll, W:WORLD_W, H:WORLD_H, groundTop:WORLD_H - GROUND_H });
 
-  // pawprints
-  ctx.globalAlpha = 0.18;
-  for (let x = 0; x < WORLD_W + 40; x += 60) {
-    const px = x - (t * 1.2) % 60;
-    const py = WORLD_H - GROUND_H / 2 + ((x / 60) % 2) * 8;
+  // pawprints walk along with the roof
+  ctx.globalAlpha = 0.16;
+  for (let x = 0; x < WORLD_W + 80; x += 60) {
+    const px = x - worldScroll % 60;
+    const py = WORLD_H - GROUND_H / 2 + 6 + ((x / 60) % 2) * 8;
     drawPaw(px, py, 1.0);
   }
   ctx.globalAlpha = 1;
@@ -944,7 +773,7 @@ function drawPaw(x, y, s) {
 function drawMouse() {
   ctx.save();
 
-  const ahead = MOUSE_GAP + Math.max(0, cat.vy) * 0.4 + (cat.rot * MOUSE_DRAW_AHEAD);
+  const ahead = gameOver ? MOUSE_GAP : MOUSE_GAP + Math.max(0, cat.vy) * 0.4 + (cat.rot * MOUSE_DRAW_AHEAD);
   ctx.translate(mouse.x + ahead, mouse.y);
 
   const tilt = Math.max(-0.35, Math.min(0.35, mouse.vy * 0.06));
@@ -1025,6 +854,11 @@ function drawCat() {
   ctx.fillStyle = catStyle.ear;
   ctx.beginPath(); ctx.moveTo(-10, -10); ctx.lineTo(-18, -22); ctx.lineTo(-2, -18); ctx.closePath(); ctx.fill();
   ctx.beginPath(); ctx.moveTo(10, -10);  ctx.lineTo(18, -22);  ctx.lineTo(2, -18);  ctx.closePath(); ctx.fill();
+  ctx.fillStyle = "rgba(255,170,185,0.55)"; // inner ears
+  ctx.beginPath(); ctx.moveTo(-9.5, -12.5); ctx.lineTo(-14.5, -19.5); ctx.lineTo(-5, -17); ctx.closePath(); ctx.fill();
+  ctx.beginPath(); ctx.moveTo(9.5, -12.5);  ctx.lineTo(14.5, -19.5);  ctx.lineTo(5, -17);  ctx.closePath(); ctx.fill();
+  ctx.fillStyle = "rgba(255,255,255,0.13)"; // soft belly
+  ctx.beginPath(); ctx.ellipse(0, 7, 11, 7.5, 0, 0, Math.PI * 2); ctx.fill();
 
 // stripes (bigger / more visible sometimes)
 if (catStripeMode !== 0) {
@@ -1061,13 +895,30 @@ if (catStripeMode !== 0) {
 }
 
   // eyes
-  if (catStyle.eyes) {
-    ctx.fillStyle = catStyle.eyes;
-    for (const x of [-6, 6]) { ctx.beginPath(); ctx.ellipse(x, -2, 4.2, 3.6, 0, 0, Math.PI * 2); ctx.fill(); }
+  if (gameOver) {
+    // bonked: little crossed eyes
+    ctx.strokeStyle = "#0b1020"; ctx.lineWidth = 1.8; ctx.lineCap = "round"; ctx.beginPath();
+    for (const x of [-6, 6]) { ctx.moveTo(x - 2.6, -4.6); ctx.lineTo(x + 2.6, 0.6); ctx.moveTo(x + 2.6, -4.6); ctx.lineTo(x - 2.6, 0.6); }
+    ctx.stroke();
+  } else if (!reducedMotion.matches && t % 230 < 7) {
+    // a quick blink
+    ctx.strokeStyle = "#0b1020"; ctx.lineWidth = 1.8; ctx.lineCap = "round"; ctx.beginPath();
+    for (const x of [-6, 6]) { ctx.moveTo(x - 3.4, -2); ctx.quadraticCurveTo(x, 0, x + 3.4, -2); }
+    ctx.stroke();
+  } else {
+    if (catStyle.eyes) {
+      ctx.fillStyle = catStyle.eyes;
+      for (const x of [-6, 6]) { ctx.beginPath(); ctx.ellipse(x, -2, 4.2, 3.6, 0, 0, Math.PI * 2); ctx.fill(); }
+    }
+    ctx.fillStyle = "#0b1020";
+    ctx.beginPath(); ctx.arc(-6, -2, 2.2, 0, Math.PI * 2); ctx.fill();
+    ctx.beginPath(); ctx.arc( 6, -2, 2.2, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = "rgba(255,255,255,0.85)"; // eye shine
+    ctx.beginPath(); ctx.arc(-6.9, -2.9, 0.8, 0, Math.PI * 2); ctx.fill();
+    ctx.beginPath(); ctx.arc( 5.1, -2.9, 0.8, 0, Math.PI * 2); ctx.fill();
   }
-  ctx.fillStyle = "#0b1020";
-  ctx.beginPath(); ctx.arc(-6, -2, 2.2, 0, Math.PI * 2); ctx.fill();
-  ctx.beginPath(); ctx.arc( 6, -2, 2.2, 0, Math.PI * 2); ctx.fill();
+  ctx.fillStyle = "rgba(240,140,160,0.95)"; // nose
+  ctx.beginPath(); ctx.moveTo(-1.5, 0.6); ctx.lineTo(1.5, 0.6); ctx.lineTo(0, 2.2); ctx.closePath(); ctx.fill();
 
 // mouth (always)
 ctx.strokeStyle = "rgba(11,16,32,0.55)";
@@ -1096,10 +947,12 @@ ctx.stroke();
   ctx.lineWidth = 6;
   ctx.lineCap = "round";
   ctx.beginPath();
+  const wag = reducedMotion.matches ? 0 : Math.sin(t * 0.14) * 3;
   ctx.moveTo(-18, 6);
-  ctx.quadraticCurveTo(-34, 0, -30, -10);
+  ctx.quadraticCurveTo(-34, wag, -30 + wag * 0.4, -10 + wag);
   ctx.stroke();
 
+  drawHat(ctx, hat.id, t);
   ctx.restore();
 }
 
@@ -1109,10 +962,11 @@ function drawSparkles() {
 
   for (const sp of sparkles) {
     ctx.globalAlpha = Math.max(0, sp.life / 30);
-    ctx.font = "16px system-ui";
+    if (sp.kind === 'puff') { ctx.fillStyle = sp.color || '#cfe3ff'; ctx.beginPath(); ctx.arc(sp.x, sp.y, 2 + sp.life / 9, 0, Math.PI * 2); ctx.fill(); continue; }
+    ctx.font = sp.kind === 'star' ? "13px system-ui" : "16px system-ui";
     ctx.textAlign = "center";
     ctx.textBaseline = "middle";
-    ctx.fillText("🐟", sp.x, sp.y);
+    ctx.fillText(sp.kind === 'star' ? "✨" : "🐟", sp.x, sp.y);
   }
 
   // IMPORTANT: always reset after loop (even if sparkles is empty)
@@ -1126,6 +980,18 @@ function drawUI() {
   ctx.font = "800 44px system-ui";
   ctx.fillStyle = "rgba(231,238,252,0.92)";
   ctx.fillText(`🐟 ${score}`, WORLD_W / 2, 84);
+  if (runFish > 0) { // golden fish caught this flight
+    drawGoldFish(ctx, WORLD_W - 52, 84, 0, 0.8);
+    ctx.font = "700 17px system-ui"; ctx.textAlign = "left"; ctx.fillStyle = "#ffe08a"; ctx.fillText(String(runFish), WORLD_W - 38, 85); ctx.textAlign = "center";
+    ctx.fillStyle = "rgba(231,238,252,0.92)";
+  }
+  if (resumeLeft > 0 && !paused) {
+    const n = Math.ceil(resumeLeft / (RESUME_MS / 3)), pulse = 1 - ((resumeLeft % (RESUME_MS / 3)) / (RESUME_MS / 3));
+    ctx.fillStyle = "rgba(8,12,26,0.38)"; ctx.fillRect(0, 0, WORLD_W, WORLD_H);
+    ctx.strokeStyle = "rgba(255,224,138,0.9)"; ctx.lineWidth = 5; ctx.beginPath(); ctx.arc(WORLD_W / 2, WORLD_H / 2 - 20, 54, -Math.PI / 2, -Math.PI / 2 + Math.PI * 2 * (1 - pulse)); ctx.stroke();
+    ctx.fillStyle = "#fff6dc"; ctx.font = "800 72px system-ui"; ctx.fillText(String(n), WORLD_W / 2, WORLD_H / 2 - 16);
+    ctx.font = "600 16px system-ui"; ctx.fillStyle = "rgba(231,238,252,0.9)"; ctx.fillText("Get ready…", WORLD_W / 2, WORLD_H / 2 + 62);
+  }
 
   if (!started && !gameOver && continueUsed) {
     ctx.font = "800 30px system-ui";
@@ -1179,6 +1045,17 @@ function simulate(dt) {
 
     // pipes move (dt-based)
     for (const p of pipes) p.x -= currentRules.speed * dt;
+    worldScroll += currentRules.speed * dt;
+
+    // golden fish: cosmetic, banked the moment they're caught
+    for (const p of pipes) {
+      if (!p.fish || p.fish.taken || !fishCaught(cat.x, cat.y, cat.r, p.x + p.fish.dx, p.fish.y)) continue;
+      p.fish.taken = true; runFish++; fishJar = readFish(fishJar + 1); saveSetting('flapurr_fish_v1', String(fishJar));
+      beep(988, 0.07, "sine", 0.04); setTimeout(() => beep(1319, 0.09, "sine", 0.035), 70);
+      flightCallout = { text:`Golden fish! ${fishJar} in the jar`, frames:70 };
+      for (let i = 0; i < (reducedMotion.matches ? 0 : 8); i++) sparkles.push({ x:p.x + p.fish.dx, y:p.fish.y, vx:(rand() - 0.5) * 3, vy:(rand() - 0.5) * 3, life:28, kind:'star' });
+      renderHats();
+    }
 
     // recycle pipes
     if (pipes.length && pipes[0].x + PIPE_W < -20) {
@@ -1227,6 +1104,11 @@ function simulate(dt) {
       if (circleRectCollide(cat.x, cat.y, cat.r, p.x, 0, PIPE_W, topH)) setGameOver('upper');
       if (circleRectCollide(cat.x, cat.y, cat.r, p.x, botY, PIPE_W, botH)) setGameOver('lower');
     }
+  } else if (gameOver && crashFall) {
+    // A tumble to the roof after a bonk. Looks only: the run has already ended.
+    cat.vy = Math.min(cat.vy + currentRules.gravity * dt, 13); cat.y += cat.vy * dt; cat.rot += 0.2 * dt;
+    mouse.x += 2.8 * dt; // the mouse makes a run for it
+    if (cat.y + cat.r >= WORLD_H - GROUND_H) { cat.y = WORLD_H - GROUND_H - cat.r; cat.rot = Math.PI; crashFall = false; }
   }
 
   // sparkles (dt-based)
@@ -1243,7 +1125,10 @@ function simulate(dt) {
 }
 function update(now=0) {
   const elapsed=lastTime ? now-lastTime : 0;lastTime=now;
-  if(!paused)stepper.advance(elapsed,simulate);
+  if (resumeLeft > 0 && !paused) {
+    resumeLeft -= Math.min(100, elapsed);
+    if (resumeLeft <= 0) { resumeLeft = 0; stepper.reset(); statusEl.textContent = `Playing • Treats: ${score} • Best: ${best}`; }
+  } else if(!paused)stepper.advance(elapsed,simulate);
   // Clear the ENTIRE backing bitmap, including letterbox margins, before
   // returning to world coordinates. Clip all artwork to the playable area.
   ctx.save();ctx.setTransform(1,0,0,1,0,0);ctx.globalAlpha=1;
@@ -1281,7 +1166,13 @@ function update(now=0) {
 // ---------- Start ----------
 renderFlightLog();
 updateCrew();
+renderHats();
 reset();
 update();
 setNet("Connecting to cat HQ…");
 initFirebase();
+
+// Offline play: a network-first service worker keeps the last good copy of the game.
+if (!preview && 'serviceWorker' in navigator && (location.protocol === 'https:' || location.hostname === 'localhost')) {
+  navigator.serviceWorker.register('sw.js').catch(() => {});
+}
