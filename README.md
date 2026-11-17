@@ -29,3 +29,22 @@ The responsive arcade puts the flight deck and crew beside the playfield on desk
 - **Reliable score feedback:** the board can load even when the visit counter fails. A completed score write remains successful if the follow-up board refresh fails. Score entry supports a focus trap, Escape, and Enter to submit.
 
 `crew-progress.js` contains validated, independent progress and feedback rules; `crew-ui.js` handles the stamp book and cat portraits. Progress and unlocked skies are stored on this device and need no new service. Tests include progress migration, malformed storage, mode isolation, cosmetic unlock thresholds, clean-pass boundaries, and browser checks across 320–1440px.
+
+## Monetization: Continue with a rewarded ad
+
+After a crash in **Classic**, a player who has at least one treat can **Continue · watch an ad** once per run. After the ad, the cat floats in the next gap until the next tap, then blinks through a short moment of protection. The course slides so the next post is a safe distance ahead. Saying no, or an ad that fails to load, ends the run normally.
+
+- **Fair play:** Daily and Practice never offer a continue. A continued run can't post to Top Cats. The crash's best score, flight log and crew stamps are undone when you continue, so each run is counted once, when it really ends.
+- **The ad sits behind one interface** in `ads.js` (`offer()` → `show()` → `rewarded | dismissed | unavailable`), so a network can be switched on without touching the game. `AD_CONFIG.provider`:
+  - `'placeholder'` (now): a 5-second stand-in card, so the flow works today and earns nothing.
+  - `'adsense'`: Google AdSense **H5 Games Ads**, rewarded format through the Ad Placement API (`adConfig` + `adBreak({type:'reward'})`). Continue only appears when Google has an ad ready.
+  - `'none'`: hides the offer.
+  - For testing, `?ads=none` or `?ads=placeholder` overrides the setting.
+
+### Turning on real ads (AdSense)
+1. **Use a custom domain.** AdSense generally won't approve a `github.io` sub-page. Point a domain at GitHub Pages (Settings → Pages → Custom domain).
+2. **Sign up for AdSense** with that domain and apply for **H5 Games Ads**.
+3. **Add `ads.txt`** at the domain's root with the line AdSense gives you, for example `google.com, pub-XXXXXXXXXXXXXXXX, DIRECT, f08c47fec0942fa0`.
+4. **Add a privacy policy page.** For visitors in the EU, UK or Switzerland, turn on Google's consent message (AdSense → Privacy & messaging).
+5. **Set `AD_CONFIG`** in `ads.js` to `{ provider:'adsense', adsenseClient:'ca-pub-XXXXXXXXXXXXXXXX', testMode:true }`. Try it, since test mode shows Google's test ads. Then set `testMode:false`.
+6. **Consider restricting ad categories** in AdSense (Blocking controls), since family members play.
