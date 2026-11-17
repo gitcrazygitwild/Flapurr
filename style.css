@@ -956,3 +956,60 @@ canvas {
 .ad-count { font:700 26px/1.2 system-ui; margin:4px 0 14px; font-variant-numeric:tabular-nums; }
 .ad-actions { display:flex; gap:8px; justify-content:center; flex-wrap:wrap; }
 .ad-box .btnGhost { color:#2b2433; border-color:#d9cfc2; }
+
+/* The hat rack (golden fish unlocks) */
+.hat-picker {
+  margin-top: 10px;
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 7px;
+}
+.hat-choice {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  align-items: center;
+  background: #ffffff03;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  color: #d8e0ee;
+  padding: 8px 4px;
+  font-size: 9px;
+  line-height: 1.4;
+  cursor: pointer;
+}
+.hat-choice .hat-icon {
+  font-size: 18px;
+  line-height: 1.2;
+}
+.hat-choice[aria-pressed="true"] {
+  border-color: #ffe08a99;
+  background: #ffe08a0d;
+}
+.hat-choice small {
+  font-size: 8px;
+  color: var(--muted);
+}
+.hat-choice:disabled {
+  opacity: 0.55;
+  cursor: default;
+}
+.hat-choice:disabled .hat-icon {
+  filter: grayscale(1);
+}
+#fishTotal {
+  color: #ffe08a;
+}
+.fish-reward {
+  color: #ffe08a;
+  font-size: 12px;
+  margin: 6px 0 0;
+}
+.fish-reward:empty {
+  display: none;
+}
+.install-tip {
+  font-size: 10px;
+  color: var(--muted);
+  margin: 10px 2px 0;
+}

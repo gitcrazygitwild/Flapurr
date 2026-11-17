@@ -13,9 +13,18 @@
       content="Fly with Hubert, Mack, and Mia. Chase treats, collect crew stamps, and find your rhythm in a little cat arcade."
     />
     <link rel="icon" type="image/svg+xml" href="icon.svg" />
+    <link rel="manifest" href="manifest.webmanifest" />
+    <link rel="apple-touch-icon" href="apple-touch-icon.png" />
+    <meta name="apple-mobile-web-app-title" content="Flapurr" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta
+      name="apple-mobile-web-app-status-bar-style"
+      content="black-translucent"
+    />
 
     <!-- Styles -->
-    <link rel="stylesheet" href="style.css?v=4" />
+    <link rel="stylesheet" href="style.css?v=5" />
   </head>
 
   <body>
@@ -146,6 +155,7 @@
               <div class="result-stats" id="resultStats"></div>
               <p class="flight-advice" id="flightAdvice"></p>
               <p class="crew-reward" id="crewReward" role="status"></p>
+              <p class="fish-reward" id="fishReward" role="status"></p>
             </div>
             <div class="result-actions">
               <button id="continueRun" class="btnPrimary continue-run" type="button" hidden>
@@ -213,6 +223,23 @@
               Your stamps and skies stay on this device.
             </p>
           </section>
+          <section class="panel wardrobe-panel">
+            <div class="panel-heading">
+              <h2>The hat rack</h2>
+              <span id="fishTotal">🐠 0</span>
+            </div>
+            <p class="tiny">
+              Catch golden fish between the posts to unlock hats. They’re just
+              for fun and never change your score.
+            </p>
+            <div
+              id="hatPicker"
+              class="hat-picker"
+              role="group"
+              aria-label="Hat"
+            ></div>
+            <p id="hatNext" class="crew-next"></p>
+          </section>
           <section class="panel leaderboard-panel">
             <div class="panel-heading">
               <h2>Top Cats</h2>
@@ -243,6 +270,10 @@
             </p>
             <ol id="recentFlights"></ol>
           </details>
+          <p class="install-tip">
+            Tip: add Flapurr to your home screen (Share → Add to Home Screen) and
+            it plays offline too.
+          </p>
         </aside>
       </main>
       <!-- FOOTER -->
@@ -290,6 +321,6 @@
 
     <!-- GAME SCRIPT -->
     <!-- IMPORTANT: must be type="module" -->
-    <script type="module" src="game.js?v=5"></script>
+    <script type="module" src="game.js?v=6"></script>
   </body>
 </html>
