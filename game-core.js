@@ -32,3 +32,12 @@ export function resultText(run) {
   const mode=run.mode==='daily'?`Daily · ${run.day}`:run.mode==='practice'?'Practice':'Classic';
   return `Flapurr! ${medalFor(run.score).icon}\n${run.cat} · ${mode}\n${run.score} treats · ${medalFor(run.score).name}\nhttps://gitcrazygitwild.github.io/Flapurr/`;
 }
+// One continue per run, Classic only, once a treat is on the board. Daily stays a
+// shared, comparable course and Practice is already forgiving.
+export const continueAllowed = ({ mode, used, score }) => mode === 'classic' && !used && score >= 1;
+// Revive with clear air: slide the course so the next post is at least `room` ahead.
+export function reviveShift(pipeXs, catX, catR, pipeWidth, room = 170) {
+  const ahead = pipeXs.filter(x => x + pipeWidth >= catX - catR);
+  if (!ahead.length) return 0;
+  return Math.max(0, catX + room - Math.min(...ahead));
+}

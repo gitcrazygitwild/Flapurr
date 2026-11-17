@@ -2,7 +2,8 @@
 // Firebase Firestore leaderboard + total plays + name entry modal
 // House cats, cosmetic skies, yarn gates, and local crew progress
 
-import { WORLD, fitViewport, rulesFor, circleRectCollide, fixedStepper, MILESTONES, medalFor, readFlightLog, recordFlight, resultText } from './game-core.js?v=4';
+import { WORLD, fitViewport, rulesFor, circleRectCollide, fixedStepper, MILESTONES, medalFor, readFlightLog, recordFlight, resultText, continueAllowed, reviveShift } from './game-core.js?v=5';
+import { createAdProvider } from './ads.js?v=1';
 import { readCrewProgress, recordCrewFlight, stampCount, availableSky, isCleanPass, flightAdvice } from './crew-progress.js';
 import { catAvatar, renderCrew } from './crew-ui.js';
 import { challengeDay, daySeed, courseRandom, HOUSE_CATS, dailyBestKey } from './challenge.js?v=2';
@@ -266,6 +267,10 @@ let catStripeMode = 0; // 0 none, 1 heavy bands, 2 tabby, 3 mixed
 // ---------- State ----------
 let started = false;
 let gameOver = false;
+// Continue (rewarded ad): one per Classic run. `crashSnapshot` undoes the crash's
+// bookkeeping if the run continues, so a run is counted once, when it truly ends.
+const ads = createAdProvider();
+let continueUsed = false, invulnerable = 0, crashSnapshot = null, offerToken = 0;
 let score = 0; // displayed as treats
 let best = Number(readSetting("flapurr_best") || 0);
 
@@ -351,6 +356,7 @@ function reset() {
   document.getElementById('dailyResult').textContent = '';
   started = false;
   gameOver = false;
+  continueUsed = false; invulnerable = 0; crashSnapshot = null; offerToken++; hideContinue();
   score = 0;
   t = 0;
   lastTime=0;
@@ -429,6 +435,7 @@ function flap() {
 function setGameOver(reason = '') {
   if (gameOver) return;
   gameOver = true;
+  crashSnapshot = { best, flightLog, crewProgress };
   const newBest = score > best, beforeStamps = stampCount(crewProgress);
   hiss(0.14, 0.02);
 
@@ -438,7 +445,7 @@ function setGameOver(reason = '') {
   }
 
   statusEl.textContent = `Game Over • Treats: ${score} • Best: ${best} • Tap to restart`;
-  lastResult={score,mode,cat:catStyle.name,day:runDay};
+  lastResult={score,mode,cat:catStyle.name,day:runDay,continued:continueUsed};
   crewProgress = recordCrewFlight(crewProgress, lastResult);
   saveSetting('flapurr_crew_v1', JSON.stringify(crewProgress));
   updateCrew();
@@ -453,9 +460,48 @@ function setGameOver(reason = '') {
   const gained = stampCount(crewProgress) - beforeStamps;
   document.getElementById('crewReward').textContent = gained ? `✦ ${gained} new crew stamp${gained === 1 ? '' : 's'}! ${stampCount(crewProgress) >= 6 && beforeStamps < 6 ? 'Catnip aurora unlocked.' : stampCount(crewProgress) >= 3 && beforeStamps < 3 ? 'Peach sunset unlocked.' : 'A little closer to your next sky.'}` : '';
   document.getElementById('resultStatus').textContent='';
-  document.getElementById('shareScore').hidden=mode!=='classic' || preview;
+  document.getElementById('shareScore').hidden=mode!=='classic' || preview || continueUsed;
   document.getElementById('shareScore').disabled=false;
+  document.getElementById('continueNote').textContent = continueUsed && mode === 'classic' ? 'Continued runs stay off Top Cats, so the board stays fair.' : '';
   updateControls();
+  offerContinue();
+}
+// ---------- Continue after a crash ----------
+function hideContinue() { const button = document.getElementById('continueRun'); if (button) { button.hidden = true; button.disabled = false; } }
+async function offerContinue() {
+  if (!continueAllowed({ mode, used:continueUsed, score })) return;
+  const token = ++offerToken, show = await ads.offer().catch(() => null);
+  if (!show || token !== offerToken || !gameOver) return;
+  const button = document.getElementById('continueRun');
+  button.hidden = false; button.disabled = false;
+  button.onclick = async () => {
+    if (token !== offerToken || !gameOver) return;
+    button.disabled = true; const wasMuted = muted; muted = true;
+    const result = await show().catch(() => 'unavailable');
+    muted = wasMuted;
+    if (token !== offerToken || !gameOver) return;
+    if (result === 'rewarded') revive();
+    else { hideContinue(); document.getElementById('resultStatus').textContent = result === 'dismissed' ? 'No problem. Fly again whenever you’re ready.' : 'No ad was available this time.'; }
+  };
+}
+function revive() {
+  // Undo the crash's bookkeeping; the run is recorded once, when it really ends.
+  if (crashSnapshot) {
+    ({ best, flightLog, crewProgress } = crashSnapshot); crashSnapshot = null;
+    saveSetting(bestKey(), String(best)); saveSetting('flapurr_flights_v1', JSON.stringify(flightLog)); saveSetting('flapurr_crew_v1', JSON.stringify(crewProgress));
+    renderFlightLog(); updateCrew();
+  }
+  const shift = reviveShift(pipes.map(p => p.x), cat.x, cat.r, PIPE_W);
+  for (const p of pipes) p.x += shift;
+  const next = pipes.find(p => p.x + PIPE_W >= cat.x - cat.r);
+  cat.y = next ? next.gapCenter : WORLD_H * 0.45; cat.vy = 0; cat.rot = 0;
+  mouse.x = cat.x + cat.r * MOUSE_ANCHOR; mouse.y = cat.y + MOUSE_YOFF; mouse.vx = 0; mouse.vy = 0;
+  continueUsed = true; invulnerable = 75; offerToken++;
+  gameOver = false; started = false; // hover until the next flap
+  hideContinue();
+  document.getElementById('runResult').hidden = true;
+  statusEl.textContent = `Back in the air • Treats: ${score} • Tap or Space to fly`;
+  updateControls(); canvas.focus({ preventScroll:true });
 }
 
 
@@ -1081,7 +1127,13 @@ function drawUI() {
   ctx.fillStyle = "rgba(231,238,252,0.92)";
   ctx.fillText(`🐟 ${score}`, WORLD_W / 2, 84);
 
-  if (!started && !gameOver) {
+  if (!started && !gameOver && continueUsed) {
+    ctx.font = "800 30px system-ui";
+    ctx.fillText("Back in the air!", WORLD_W / 2, WORLD_H / 2 + 60);
+    ctx.font = "600 16px system-ui"; ctx.globalAlpha = 0.85;
+    ctx.fillText("Space or tap to keep flying", WORLD_W / 2, WORLD_H / 2 + 96);
+    ctx.globalAlpha = 1;
+  } else if (!started && !gameOver) {
     ctx.font = "800 34px system-ui";
     ctx.fillText("FLAPURR!", WORLD_W / 2, WORLD_H / 2 + 40);
     ctx.font = "600 16px system-ui";
@@ -1099,6 +1151,7 @@ function simulate(dt) {
 
   if (started && !gameOver && !paused) {
     flightStats.frames += dt;
+    if (invulnerable > 0) invulnerable = Math.max(0, invulnerable - dt);
     // physics (dt-based)
     cat.vy += currentRules.gravity * dt;
     cat.y  += cat.vy * dt;
@@ -1162,7 +1215,7 @@ function simulate(dt) {
 
     // bounds
     if (cat.y - cat.r < 0) { cat.y = cat.r; cat.vy = 0; }
-    if (cat.y + cat.r > WORLD_H - GROUND_H) setGameOver('ground');
+    if (cat.y + cat.r > WORLD_H - GROUND_H) { if (invulnerable > 0) { cat.y = WORLD_H - GROUND_H - cat.r; cat.vy = Math.min(cat.vy, 0); } else setGameOver('ground'); }
 
     // collisions
     for (const p of pipes) {
@@ -1170,6 +1223,7 @@ function simulate(dt) {
       const botY = p.gapCenter + currentRules.gap / 2;
       const botH = (WORLD_H - GROUND_H) - botY;
 
+      if (invulnerable > 0) continue; // a moment of grace right after a continue
       if (circleRectCollide(cat.x, cat.y, cat.r, p.x, 0, PIPE_W, topH)) setGameOver('upper');
       if (circleRectCollide(cat.x, cat.y, cat.r, p.x, botY, PIPE_W, botH)) setGameOver('lower');
     }
@@ -1211,6 +1265,7 @@ function update(now=0) {
   ctx.globalAlpha = 1;
   drawSparkles();
   ctx.globalAlpha = 1;
+  ctx.globalAlpha = invulnerable > 0 && started && Math.floor(t / 6) % 2 ? 0.45 : 1; // blink while protected
   drawCat();
   drawMouse();
   ctx.globalAlpha = 1;

@@ -944,3 +944,15 @@ canvas {
   -webkit-user-select: none;
   -webkit-touch-callout: none;
 }
+
+/* Continue after a crash (rewarded ad) */
+.continue-run { order:-1; }
+.continue-note { font-size:12px; opacity:.75; margin:6px 0 0; }
+.ad-overlay { position:absolute; inset:0; z-index:40; display:grid; place-items:center; padding:16px; background:rgba(8,12,26,.82); backdrop-filter:blur(3px); }
+.ad-box { position:relative; width:min(340px,100%); padding:22px 20px 18px; border-radius:18px; background:#fffaf2; color:#2b2433; text-align:center; box-shadow:0 18px 50px rgba(0,0,0,.4); }
+.ad-box strong { display:block; font-size:20px; margin:6px 0 6px; }
+.ad-box p { margin:0 0 12px; font-size:14px; color:#5d5466; }
+.ad-tag { position:absolute; top:10px; left:12px; padding:1px 6px; border-radius:5px; background:#f2c14e; color:#2b2433; font:700 10px/1.6 system-ui; letter-spacing:.06em; }
+.ad-count { font:700 26px/1.2 system-ui; margin:4px 0 14px; font-variant-numeric:tabular-nums; }
+.ad-actions { display:flex; gap:8px; justify-content:center; flex-wrap:wrap; }
+.ad-box .btnGhost { color:#2b2433; border-color:#d9cfc2; }
